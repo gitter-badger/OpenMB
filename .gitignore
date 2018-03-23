@@ -1,15 +1,19 @@
 *.pdb
 *.exe
-*.dll
+*.vshost.exe
 *.manifest
 *.log
 *.suo
 Mods/*.dll
-
+*.config
+*.cache
+*.Cache
+*.FileListAbsolute.txt
 packages/*
+*.resources
 
 AMOFGameEngine/obj/*/*/*
 AMOFGameEngine.Mods.Common/obj/*/*
 AMOFGameEngine.Mods.Common/bin/*/*
-AMOFGameEngine.Mods.Sample/obj/*/*
-AMOFGameEngine.Mods.Sample/bin/*/*
+AMOFGameEngine.Mods.Native/obj/*/*
+AMOFGameEngine.Mods.Native/bin/*/*

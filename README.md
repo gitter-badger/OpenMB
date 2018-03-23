@@ -1,20 +1,19 @@
-# AMOFGameEngine
-![Build](https://api.travis-ci.org/cookgreen/AMOFGameEngine.svg?branch=master)
+# AMGE
+![Build](https://travis-ci.org/cookgreen/AMGE.svg?branch=dev) ![License](https://img.shields.io/badge/License-GPL-blue.svg)
 
 ## Introduction:
-A open source RPG game engine based on AdvancedMogreFramework
+Open Source Role-Play Game engine based on MOGRE(Managed Ogre)
 
 ## Feature:
-* Ogg Support(done)  
-* Simple Wrapper for oggsound(done)  
+* Character AI(doing)
+* Mod System(doing) 
+* Soound System(done)  
 * Locate system(done)  
 * Custom Configuration Dialog(done)  
-* AppState Management(done)  
-* Character Controller(done)  
+* Character System(done)  
 * Network(doing)  
 * Physx(done, beta)  
 * GUI System(done) 
-* AI(doing)  
 
 ## Based on:
 * Mogre(Graphic Render Engine;LGPL)  
@@ -23,6 +22,10 @@ A open source RPG game engine based on AdvancedMogreFramework
 * MogreBites(GUI System;GPLv2)  
 * <s>Prolog.NET(AI;Ms-PL)</s>  
 * Accord.NET(AI;LGPL)  
+
+## Usage:
+* Shift+Space - Full Screen
+* V - Screenshot
 
 ## License:
 GPLv3

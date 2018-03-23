@@ -3,130 +3,186 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
-using Mogre;
 using System.Reflection;
+using System.ComponentModel;
 using AMOFGameEngine.Utilities;
 using AMOFGameEngine.Mods;
-using AMOFGameEngine.Mods.Common;
 
 namespace AMOFGameEngine.Mods
 {
+    using Mods = Dictionary<string, ModManifest>;
+
     public class ModManager
     {
-        public Action<ModEventArgs> ModStateChangedAction;
-
-        OgreConfigFileAdapter ofa;
-        List<OgreConfigNode> modData;
-        const string modConfigFile="Mods.cfg";
-
-        List<ModBaseInfo> avaliableModInfos;
-        public List<ModBaseInfo> AvaliableModInfos
+        private Dictionary<string, ModManifest> InstalledMods;
+        private string modInstallRootDir;
+        private ConfigFileParser parser;
+        private ConfigFile modConfigData;
+        private ModData currentMod;
+        private string currentModName;
+        private BackgroundWorker worker;
+        public event Action LoadingModStarted;
+        public event Action LoadingModFinished;
+        public event Action<int> LoadingModProcessing;
+        public ModData ModData
         {
-            get { return avaliableModInfos; }
-            set { avaliableModInfos = value; }
+            get { return currentMod; }
         }
-        List<IMod> avaliableMods;
 
-        IMod currentMod;
+        public static ModManager Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    instance = new ModManager();
+                }
+                return instance;
+            }
+        }
+        static ModManager instance;
 
         public ModManager()
         {
-            avaliableMods = new List<IMod>();
-            avaliableModInfos = new List<ModBaseInfo>();
-            ofa = new OgreConfigFileAdapter(modConfigFile);
-            modData = ofa.ReadConfigData();
+            InstalledMods = new Dictionary<string, ModManifest>();
             currentMod = null;
-            LoadMods();
-        }
-        
-        List<KeyValuePair<string, string>> GetModsConfig()
-        {
-            return modData.Where(o => o.Section == "").First().Settings.Where(o => o.Key == "Mod").ToList();
+            modConfigData = new ConfigFile();
+            modInstallRootDir = null;
+            parser = new ConfigFileParser();
+            worker = new BackgroundWorker();
+            worker.WorkerReportsProgress = true;
+            worker.DoWork += worker_DoWork;
+            worker.RunWorkerCompleted += worker_RunWorkerCompleted;
+            worker.ProgressChanged += worker_ProgressChanged;
         }
 
-        public void LoadMods()
+        void worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
-            List<OgreConfigNode> modData = ofa.ReadConfigData();
-            string modDir=modData.Where(o => o.Section == "").First().Settings["ModDir"];
-
-            List<KeyValuePair<string, string>> modNames = GetModsConfig();
-            foreach (KeyValuePair<string, string> modkpl in modNames)
+            if (LoadingModProcessing != null)
             {
-
-                string modPath = string.Format(@"{0}\{1}\{2}.dll", System.Environment.CurrentDirectory, modDir, modkpl.Value);
-                Assembly modAssembly = Assembly.LoadFile(modPath);
-                string modClassName = string.Format("{0}.{1}", modkpl.Value, "ModMain");
-                IMod mod = Activator.CreateInstance(modAssembly.GetType(modClassName)) as IMod;
-                mod.ModStateChangedEvent += new EventHandler<ModEventArgs>(mod_ModStateChangedEvent);
-                avaliableMods.Add(mod);
-                ModBaseInfo modInfo = new ModBaseInfo();
-                modInfo.ModName = mod.modInfo["Name"];
-                modInfo.ModDesc = mod.modInfo["Description"];
-                modInfo.ModThumb = mod.modInfo["Thumb"];
-                avaliableModInfos.Add(modInfo);
+                LoadingModProcessing(e.ProgressPercentage);
             }
         }
 
-        void mod_ModStateChangedEvent(object sender, ModEventArgs e)
+        void worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            if (e.modState == ModState.Stop)
+            worker.Dispose();
+            if (LoadingModFinished != null)
             {
-                if (ModStateChangedAction != null)
+                LoadingModFinished();
+            }
+        }
+
+        void worker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            try
+            {
+                if (InstalledMods == null || InstalledMods.Count <= 0)
                 {
-                    ModStateChangedAction(e);
+                    return;
+                }
+                ModManifest manifest = InstalledMods.Where(o => o.Key == currentModName).SingleOrDefault().Value;
+                currentMod = new AMOFGameEngine.Mods.ModData();
+                currentMod.BasicInfo = manifest.MetaData;
+                worker.ReportProgress(25);
+                
+                ModXMLLoader loader = new ModXMLLoader(manifest.InstalledPath + "/" + manifest.Data.Characters);
+                XML.ModCharactersDfnXML characterDfn;
+                loader.Load<XML.ModCharactersDfnXML>(out characterDfn);
+                currentMod.CharacterInfos = characterDfn.CharacterDfns;
+                worker.ReportProgress(50);
+                
+                loader = new ModXMLLoader(manifest.InstalledPath + "/" + manifest.Data.Items);
+                XML.ModItemsDfnXML itemDfn;
+                loader.Load<XML.ModItemsDfnXML>(out itemDfn);
+                currentMod.ItemInfos = itemDfn != null ? itemDfn.Items : null;
+                worker.ReportProgress(75);
+                
+                loader = new ModXMLLoader(manifest.InstalledPath + "/" + manifest.Data.Sides);
+                XML.ModSidesDfnXML sideDfn;
+                loader.Load<XML.ModSidesDfnXML>(out sideDfn);
+                currentMod.SideInfos = sideDfn.Sides;
+                worker.ReportProgress(80);
+
+                loader = new ModXMLLoader(manifest.InstalledPath + "/" + manifest.Data.Music);
+                XML.ModTracksDfnXML trackDfn;
+                loader.Load<XML.ModTracksDfnXML>(out trackDfn);
+                currentMod.MusicInfos = trackDfn.Tracks;
+
+                worker.ReportProgress(100);
+
+                System.Threading.Thread.Sleep(1000);
+            }
+            catch
+            {
+                return;
+            }
+        }
+
+        string GetModInstallRootDir()
+        {
+            modConfigData = parser.Load("Game.cfg");
+            ConfigFileSection section = modConfigData["Mods"];
+            if (section != null)
+            {
+                string modDir = section["ModDir"];
+                if (!string.IsNullOrEmpty(modDir))
+                {
+                    modInstallRootDir = modDir;
                 }
             }
+            return modInstallRootDir;
         }
 
-        public List<ModBaseInfo> GetAllMods()
+        public Mods GetInstalledMods()
         {
-            return avaliableModInfos;
-        }
+            GetModInstallRootDir();
 
-        public void SetupMod(int modIndex)
-        {
-            IMod currentMod = avaliableMods.ElementAt(modIndex);
-            if (currentMod != null)
+            if (!string.IsNullOrEmpty(modInstallRootDir))
             {
-                currentMod.SetupMod(
-                    GameManager.Singleton.mRoot,
-                    GameManager.Singleton.mRenderWnd,
-                    GameManager.Singleton.mTrayMgr,
-                    GameManager.Singleton.mMouse,
-                    GameManager.Singleton.mKeyboard
-                    );
+                DirectoryInfo d = new DirectoryInfo(modInstallRootDir);
+
+                FileSystemInfo[] modDirs = d.GetFileSystemInfos();
+
+                foreach (var dir in modDirs)
+                {
+                    if (File.Exists(string.Format("{0}/Module.xml", dir.FullName)))
+                    {
+                        ModManifest manifest = new ModManifest(dir.FullName);
+                        InstalledMods.Add(manifest.MetaData.Name, manifest);
+                        Mogre.ResourceGroupManager.Singleton.AddResourceLocation(
+                            string.Format("{0}\\Media\\Textures\\", dir.FullName), "FileSystem", "General");
+                        Mogre.ResourceGroupManager.Singleton.AddResourceLocation(
+                            string.Format("{0}\\Media\\Models\\", dir.FullName), "FileSystem", "General");
+                        Mogre.ResourceGroupManager.Singleton.AddResourceLocation(
+                            string.Format("{0}\\Media\\Materials\\", dir.FullName), "FileSystem", "General");
+                        Mogre.ResourceGroupManager.Singleton.AddResourceLocation(
+                            string.Format("{0}\\Media\\Program\\", dir.FullName), "FileSystem", "General");
+                    }
+                }
             }
+
+            return InstalledMods;
         }
 
-        public void RunMod(int modIndex)
+        public void LoadMod(string name)
         {
-            SetupMod(modIndex);
-
-            IMod currentMod = avaliableMods.ElementAt(modIndex);
-            if (currentMod != null)
+            if (LoadingModStarted != null)
             {
-                currentMod.StartModSP();
+                LoadingModStarted();
             }
+            currentModName = name;
+            worker.RunWorkerAsync();
         }
 
-        public void RunModMP(int modIndex)
+        public void UnloadAllMods()
         {
-            SetupMod(modIndex);
-
-            IMod currentMod = avaliableMods.ElementAt(modIndex);
-            if (currentMod != null)
-            {
-                currentMod.StartModMP();
-            }
+            InstalledMods.Clear();
         }
 
-        public void UpdateMod(float timeSinceLastFrame,int modIndex)
+        public void Update(float timeSinceLastFrame)
         {
-            IMod currentMod = avaliableMods.ElementAt(modIndex);
-            if (currentMod != null)
-            {
-                currentMod.UpdateMod(timeSinceLastFrame);
-            }
+
         }
     }
 }

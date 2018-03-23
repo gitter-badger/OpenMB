@@ -8,30 +8,65 @@ using Mogre;
 
 namespace AMOFGameEngine.Localization
 {
-    class LocateUCSFile
+    public class LocateUCSFile : IDisposable
     {
-        static string path = @"./Locate/";
-        static Dictionary<string, string> UCSValueTmp=new Dictionary<string,string>();
+        private const string PATH = @"./Locate/";
+        private Dictionary<string, string> UCSValueTmp;
+        private string fileName;
+        private LOCATE currentLocate;
+        private bool disposed;
 
-        public static void PrepareUCSFile()
+        public LocateUCSFile(string fileName, LOCATE currentLocate)
+        {
+            this.fileName = fileName;
+            this.currentLocate = currentLocate;
+            UCSValueTmp = new Dictionary<string, string>();
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+            {
+                return;
+            }
+            if (disposing)
+            {
+            }
+            disposed = true;
+        }
+
+        public void Prepare()
         {
             UCSValueTmp.Clear();
         }
 
-        public static bool ProcessUCSFile(string UCSFileName,LOCATE currentlocate)
+        public bool Process()
         {
-            string filepath = string.Format("{0}{1}/{2}",path,currentlocate.ToString(),UCSFileName);
+            string filepath = string.Format("{0}{1}/{2}",PATH,currentLocate.ToString(),fileName);
             if (File.Exists(filepath))
             {
                 using (StreamReader sr = new StreamReader(filepath))
                 {
                     while (sr.Peek() >= 0 && !sr.EndOfStream)
                     {
-                        string line = sr.ReadLine();
-                        string[] outputTmp = Regex.Split(line, "\t");
-                        if (!UCSValueTmp.ContainsKey(outputTmp[0]))
+                        try
                         {
-                            UCSValueTmp.Add(outputTmp[0], outputTmp[1]);
+                            string line = sr.ReadLine();
+                            string[] outputTmp = Regex.Split(line, "\t");
+                            if (!UCSValueTmp.ContainsKey(outputTmp[0]))
+                            {
+                                UCSValueTmp.Add(outputTmp[0], outputTmp[1]);
+                            }
+                        }
+                        catch
+                        {
+                            continue;
                         }
                     }
                 }
@@ -43,32 +78,61 @@ namespace AMOFGameEngine.Localization
             }
         }
 
-        public static string SeekValueByKey(string ID)
+        public string SeekValueByKey(string ID)
         {
-            string result=UCSValueTmp[ID];
-            if(!string.IsNullOrEmpty(result))
-            {
-                return result;
-            }
-            else
-                return null;
+            return UCSValueTmp.ContainsKey(ID) ? UCSValueTmp[ID] : string.Empty;
         }
 
-        public static void AddNewKeyByStr(string str)
+        public string SeekKeyByValue(string value)
         {
-            if (!UCSValueTmp.ContainsValue(str))
+            string key = string.Empty;
+            if (UCSValueTmp.ContainsValue(value))
+            {
+                foreach (KeyValuePair<string,string> kpl in UCSValueTmp)
+                {
+                    if (kpl.Value == value)
+                    {
+                        key= kpl.Key;
+                        break;
+                    }
+                }
+            }
+            return key;
+        }
+
+        private bool SeekLocalizedString(string str)
+        {
+            string localizedKey = null;
+            if (UCSValueTmp.ContainsKey(localizedKey))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public string AddNewKeyByStrIfNotExist(string str)
+        {
+            if (!SeekLocalizedString(str))
             {
                 IEnumerable<string> keys = UCSValueTmp.Keys;
                 string lastKey = keys.ElementAt(keys.Count()-1);
                 int Index = int.Parse(lastKey);
                 Index = Index + 1;
                 UCSValueTmp.Add(Index.ToString(), str);
+                return Index.ToString();
+            }
+            else
+            {
+                return null;
             }
         }
 
-        public static void SaveUCSFile(string UCSFileName,LOCATE currentlocate)
+        public void Save()
         {
-            string filepath = string.Format("{0}{1}/{2}",path,currentlocate.ToString(),UCSFileName);
+            string filepath = string.Format("{0}{1}/{2}", PATH, currentLocate.ToString(), fileName);
             using (StreamWriter sw = new StreamWriter(filepath))
             {
                 foreach (KeyValuePair<string, string> kpl in UCSValueTmp)
@@ -77,6 +141,32 @@ namespace AMOFGameEngine.Localization
                     sw.WriteLine(line);
                 }
                 sw.Flush();
+            }
+        }
+
+        public string GenerateQuickStrKeyIfNotExist(string str)
+        {
+            if (!UCSValueTmp.ContainsValue(str))
+            {
+                string prefix = null;
+                prefix = str.Replace(' ', '_').ToLower();
+                string key = "qstr_" + prefix;
+                UCSValueTmp.Add(key, str);
+
+                return key;
+            }
+            else
+            {
+                string key = null;
+                foreach (var kpl in UCSValueTmp)
+                {
+                    if (kpl.Value == str)
+                    {
+                        key = kpl.Key;
+                        break;
+                    }
+                }
+                return key;
             }
         }
     }

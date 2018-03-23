@@ -6,41 +6,41 @@ using Mogre;
 using MOIS;
 using Mogre_Procedural.MogreBites;
 using AMOFGameEngine.Mods;
-using AMOFGameEngine.Models;
+using AMOFGameEngine.Localization;
 
 namespace AMOFGameEngine.States
 {
-    public class AppStateManager : AppStateListener
+    public class AppStateManager : AppStateListener, IDisposable
     {
         protected List<AppState> m_ActiveStateStack = new List<AppState>();
         protected List<state_info> m_States = new List<state_info>();
         protected bool m_bShutdown;
-         public struct state_info
+        public event Action OnAppStateManagerStarted;
+        private bool disposed;
+
+        public struct state_info
         {
             public String name;
             public AppState state;
         };
+
+         public static AppStateManager Instance
+         {
+             get
+             {
+                 if (instance == null)
+                 {
+                     instance = new AppStateManager();
+                 }
+                 return instance;
+             }
+         }
+
+        static AppStateManager instance;
+
          public AppStateManager()
          {
              m_bShutdown = false;
-             GameManager.Singleton.mModMgr .ModStateChangedAction += new Action<ModEventArgs>(ModManager_ModStateChanged);
-         }
-          ~AppStateManager()
-         {
-             state_info si;
-
-             while (m_ActiveStateStack.Count!=0)
-             {
-                 m_ActiveStateStack.Last().exit();
-                 m_ActiveStateStack.RemoveAt(m_ActiveStateStack.Count()-1);
-             }
-
-             while (m_States.Count!=0)
-             {
-                 si = m_States.Last();
-                 si.state.destroy();
-                 m_States.RemoveAt(m_States.Count()-1);
-             }
          }
 
           public override void manageAppState(String stateName, AppState state)
@@ -66,40 +66,45 @@ namespace AMOFGameEngine.States
          public void start(AppState state)
          {
              changeAppState(state);
- 
-	        int timeSinceLastFrame = 1;
-	        int startTime = 0;
- 
-	        while(!m_bShutdown)
-	        {
-		        if(GameManager.Singleton.mRenderWnd.IsClosed)m_bShutdown = true;
- 
-		        WindowEventUtilities.MessagePump();
+             
+             int timeSinceLastFrame = 1;
+	         int startTime = 0;
 
-                if (GameManager.Singleton.mRenderWnd.IsActive)
-		        {
-                    startTime = (int)GameManager.Singleton.mTimer.MicrosecondsCPU;
+             if (OnAppStateManagerStarted != null)
+             {
+                 OnAppStateManagerStarted();
+             }
 
-                    m_ActiveStateStack.Last().update(timeSinceLastFrame * 1.0 / 1000);
-                    GameManager.Singleton.mKeyboard.Capture();
-                    GameManager.Singleton.mMouse.Capture();
-                    GameManager.Singleton.UpdateOgre(timeSinceLastFrame * 1.0 / 1000);
-                    if (GameManager.Singleton.mRoot != null)
-                    {
-                        GameManager.Singleton.mRoot.RenderOneFrame();
-                    }
-                    timeSinceLastFrame = (int)GameManager.Singleton.mTimer.MillisecondsCPU - startTime;
-                    
-		        }
-		        else
-		        {
-                    System.Threading.Thread.Sleep(1000);
-		        }
-	        }
-            GameManager.Singleton.mLocateMgr.SaveLocateFile();
-            GameManager.Singleton.mLog.LogMessage("Game Quit");
+	         while(!m_bShutdown)
+	         {
+		         if(GameManager.Instance.mRenderWnd.IsClosed)m_bShutdown = true;
+ 
+		         WindowEventUtilities.MessagePump();
+
+                 if (GameManager.Instance.mRenderWnd.IsActive)
+		         {
+                     startTime = (int)GameManager.Instance.mTimer.MicrosecondsCPU;
+
+                     m_ActiveStateStack.Last().update(timeSinceLastFrame * 1.0 / 1000);
+                     GameManager.Instance.mKeyboard.Capture();
+                     GameManager.Instance.mMouse.Capture();
+                     GameManager.Instance.UpdateRender(timeSinceLastFrame * 1.0 / 1000);
+                     //GameManager.Singleton.UpdateSubSystem(timeSinceLastFrame * 1.0 / 1000);
+
+                     GameManager.Instance.mRoot.RenderOneFrame();
+
+                     timeSinceLastFrame = (int)GameManager.Instance.mTimer.MillisecondsCPU - startTime;
+                     
+		         }
+		         else
+		         {
+                     System.Threading.Thread.Sleep(1000);
+		         }
+	         }
+             //Save locate Info to file before exiting the main game loop
+             GameManager.Instance.Exit();
          }
-         public override void changeAppState(AppState state,AppStateArgs e=null)
+         public override void changeAppState(AppState state,ModData e=null)
          {
              if (state != null)
              {
@@ -109,7 +114,7 @@ namespace AMOFGameEngine.States
                      m_ActiveStateStack.RemoveAt(m_ActiveStateStack.Count() - 1);
                  }
 
-                 m_ActiveStateStack.Insert(m_ActiveStateStack.Count(), state);
+                 m_ActiveStateStack.Add(state);
                  init(state);
                  m_ActiveStateStack.Last().enter(e);
              }
@@ -122,7 +127,7 @@ namespace AMOFGameEngine.States
                      return false;
              }
 
-             m_ActiveStateStack.Insert(m_ActiveStateStack.Count(),state);
+             m_ActiveStateStack.Add(state);
              init(state);
              m_ActiveStateStack.Last().enter();
 
@@ -174,26 +179,34 @@ namespace AMOFGameEngine.States
 
          protected void init(AppState state)
          {
-             GameManager.Singleton.mTrayMgr.setListener(state);
-             GameManager.Singleton.mRenderWnd.ResetStatistics();
+             GameManager.Instance.mTrayMgr.setListener(state);
+             GameManager.Instance.mRenderWnd.ResetStatistics();
          }
 
-         public void ModManager_ModStateChanged(ModEventArgs e)
+         public void Dispose()
          {
-             if (e.modState == ModState.Stop)
+             this.Dispose(true);
+             GC.SuppressFinalize(this);
+         }
+
+         protected virtual void Dispose(bool disposing)
+         {
+             if (!this.disposed)
              {
-                 changeAppState(findByName("MainMenu"), new AppStateArgs()
+                 if (disposing)
                  {
-                     modName = e.modName,
-                     modIndex = e.modIndex
-                 });
-             }
-             else if (e.modState == ModState.Run)
-             {
-                 changeAppState(findByName("MainMenu"), new AppStateArgs() { 
-                     modName=e.modName,
-                     modIndex=e.modIndex
-                 });
+                     while (this.m_ActiveStateStack.Count != 0)
+                     {
+                         this.m_ActiveStateStack.Last<AppState>().exit();
+                         this.m_ActiveStateStack.RemoveAt(this.m_ActiveStateStack.Count<AppState>() - 1);
+                     }
+                     while (this.m_States.Count != 0)
+                     {
+                         this.m_States.Last<state_info>().state.destroy();
+                         this.m_States.RemoveAt(this.m_States.Count<state_info>() - 1);
+                     }
+                 }
+                 this.disposed = true;
              }
          }
     }

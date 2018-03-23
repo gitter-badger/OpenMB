@@ -7,11 +7,20 @@ using MOIS;
 using Mogre_Procedural;
 using Mogre_Procedural.MogreBites;
 using NVorbis;
+using AMOFGameEngine.Addon;
 using AMOFGameEngine.Localization;
-using AMOFGameEngine.Sound;
-using AMOFGameEngine.Utilities;
-using AMOFGameEngine.States;
+using AMOFGameEngine.LogMessage;
+using AMOFGameEngine.Maps;
 using AMOFGameEngine.Mods;
+using AMOFGameEngine.Network;
+using AMOFGameEngine.Output;
+using AMOFGameEngine.Game;
+using AMOFGameEngine.Sound;
+using AMOFGameEngine.States;
+using AMOFGameEngine.Widgets;
+using AMOFGameEngine.UI;
+using AMOFGameEngine.Utilities;
+using ConfigFile = AMOFGameEngine.Utilities.ConfigFile;
 
 namespace AMOFGameEngine
 {
@@ -20,38 +29,48 @@ namespace AMOFGameEngine
         public Root mRoot;
         public RenderWindow mRenderWnd;
         public Viewport mViewport;
-        public Log mLog;
+        public EngineLog mLog;
+        public Log mMogreLog;
         public Timer mTimer;
-        public MOIS.InputManager mInputMgr;
+        public InputManager mInputMgr;
         public Keyboard mKeyboard;
         public Mouse mMouse;
-        public SdkTrayManager mTrayMgr;
+        public GameTrayManager mTrayMgr;
         public static string LastStateName;
+
+        public event Action<float> Update;
 
         public OggSound ogg;
 
         private string defaultRS;
-        OgreConfigFileAdapter cfa;
-        List<OgreConfigNode> ogreConfigs;
 
-        public AppStateManager mAppStateMgr;
-        public SoundManager mSoundMgr;
-        public ModManager mModMgr;
-        public LocateSystem mLocateMgr;
+        private AppStateManager appStateMgr;
+        private LocateSystem locateMgr;
+        private MapManager mapMgr;
+        private ModManager modMgr;
+        private NetworkManager networkMgr;
+        private OutputManager outputMgr;
+        private SoundManager soundMgr;
+        private GameUIManager uiMgr;
 
+        public Dictionary<int,GameObject> AllGameObjects;
+        public Dictionary<string, uint> GameHashMap;
 
-        static GameManager singleton;
-        public static GameManager Singleton
+        static GameManager instance;
+        public static GameManager Instance
         {
             get
             {
-                if (singleton == null)
+                if (instance == null)
                 {
-                    singleton = new GameManager();
+                    instance = new GameManager();
                 }
-                return singleton;
+                return instance;
             }
         }
+
+        private NameValuePairList videoMode;
+        
 
         public GameManager()
         {
@@ -65,35 +84,38 @@ namespace AMOFGameEngine
             mKeyboard = null;
             mMouse = null;
             mTrayMgr = null;
-            mAppStateMgr = null;
-            mSoundMgr = null;
-            cfa = new OgreConfigFileAdapter("./ogre.cfg");
-            ogreConfigs=new List<OgreConfigNode>();
+            appStateMgr = null;
+            soundMgr = null;
+            AllGameObjects = new Dictionary<int,GameObject>();
+            GameHashMap = new Dictionary<string, uint>();
+            videoMode = new NameValuePairList();
          }
 
-        public bool InitOgre(String wndTitle)
+        public bool InitRender(String wndTitle, ConfigFile renderconfig)
         {
-            LogManager logMgr = new LogManager();
- 
-            mLog = LogManager.Singleton.CreateLog("./Log/amof.log", true, true, false);
-            mLog.SetDebugOutputEnabled(true);
- 
-            mRoot = new Root();
+            mLog = EngineLogManager.Instance.CreateLog("./Log/Engine.log");
+            mMogreLog = LogManager.Singleton.CreateLog("./Log/Mogre.log", true, true, false);
+            mMogreLog.SetDebugOutputEnabled(true);
 
-            RenderSystem rs = null; ;
-            ogreConfigs = cfa.ReadConfigData();
-            defaultRS = cfa.GetDefaultRenderSystem();
+            mRoot = Root.Singleton;
+            mRoot.FrameStarted += new FrameListener.FrameStartedHandler(mRoot_FrameStarted);
+
+            RenderSystem rs = null;
+
+            defaultRS = renderconfig[""]["Render System"];
             if (!string.IsNullOrEmpty(defaultRS))
             {
                 rs = mRoot.GetRenderSystemByName(defaultRS);
+                string strVideoMode =  renderconfig[defaultRS]["Video Mode"];
+                videoMode["Width"] = strVideoMode.Split('x')[0].Trim();
+                videoMode["Height"] = strVideoMode.Split('x')[1].Trim();
             }
-            if (rs != null)
+            if (rs != null && renderconfig != null)
             {
-                OgreConfigNode node = ogreConfigs.Where(o=>o.Section==defaultRS).First();
-                if (!string.IsNullOrEmpty(node.Section))
+                ConfigFileSection node = renderconfig[defaultRS];
+                if (!string.IsNullOrEmpty(node.Name))
                 {
-
-                    foreach (KeyValuePair<string, string> kpl in node.Settings)
+                    foreach (var kpl in node.KeyValuePairs)
                     {
                         rs.SetConfigOption(kpl.Key, kpl.Value);
                     }
@@ -109,7 +131,7 @@ namespace AMOFGameEngine
             mViewport.Camera=null;
  
             int hWnd = 0;
-            //ParamList paramList;
+            
             mRenderWnd.GetCustomAttribute("WINDOW", out hWnd);
  
             mInputMgr = InputManager.CreateInputSystem((uint)hWnd);
@@ -129,58 +151,105 @@ namespace AMOFGameEngine
 
  
             String secName, typeName, archName;
-            ConfigFile cf=new ConfigFile();
-            cf.Load("resources.cfg","\t:=",true);
- 
-            ConfigFile.SectionIterator seci = cf.GetSectionIterator();
-            while (seci.MoveNext())
+            AMOFGameEngine.Utilities.ConfigFile conf = new AMOFGameEngine.Utilities.ConfigFile();
+            ConfigFileParser parser = new ConfigFileParser();
+            conf = parser.Load("resources.cfg");
+            for (int i = 0; i < conf.Sections.Count; i++)
             {
-                secName = seci.CurrentKey;
-                ConfigFile.SettingsMultiMap settings = seci.Current;
-                foreach (KeyValuePair<string, string> pair in settings)
+                secName = conf.Sections[i].Name;
+                for (int j = 0; j < conf.Sections[i].KeyValuePairs.Count; j++)
                 {
-                    typeName = pair.Key;
-                    archName = pair.Value;
+                    typeName = conf.Sections[i].KeyValuePairs[j].Key;
+                    archName = conf.Sections[i].KeyValuePairs[j].Value;
                     ResourceGroupManager.Singleton.AddResourceLocation(archName, typeName, secName);
                 }
             }
+            ResourceGroupManager.Singleton.AddResourceLocation(
+                string.Format("./Media/Engine/Fonts/{0}/", LocateSystem.Singleton.Locate.ToString()), "FileSystem",
+                "General");
 
-            TextureManager.Singleton.DefaultNumMipmaps=5;
+            TextureManager.Singleton.DefaultNumMipmaps = 5;
+
             ResourceGroupManager.Singleton.InitialiseAllResourceGroups();
 
-            mTrayMgr = new SdkTrayManager("AMOFTrayMgr", mRenderWnd, mMouse, new SdkTrayListener() );
+            mTrayMgr = new GameTrayManager("AMOFTrayMgr", mRenderWnd, mMouse, new SdkTrayListener() );
 
             mTimer = new Timer();
             mTimer.Reset();
  
             mRenderWnd.IsActive=true;
+
+            mLog.LogMessage("Game Started!");
+
             return true;
         }
 
-        public bool InitGame()
+        bool mRoot_FrameStarted(FrameEvent evt)
         {
-            mLocateMgr = new LocateSystem();
-            if (!mLocateMgr.IsInit)
+            if (Update != null)
             {
-                mLocateMgr.InitLocateSystem(mLocateMgr.GetLanguageFromFile());
+                Update(evt.timeSinceLastFrame);
             }
-            /*if (!LocateSystem.IsInit)
-                LocateSystem.InitLocateSystem(LocateSystem.GetLanguageFromFile());*/
-            mSoundMgr = new SoundManager();
-            mModMgr = new ModManager();
-            mAppStateMgr = new AppStateManager();
+            UpdateGame(evt.timeSinceLastFrame);
+            UpdateRender(evt.timeSinceLastFrame);
             return true;
         }
 
-        public void UpdateOgre(double timeSinceLastFrame)
+        public bool InitSubSystem(Dictionary<string, string> gameOptions)
         {
+            appStateMgr = new AppStateManager();
+            locateMgr = LocateSystem.Singleton;
+            mapMgr = new MapManager();
+            modMgr = new ModManager();
+            networkMgr = new NetworkManager();
+            outputMgr = new OutputManager();
+            soundMgr = new SoundManager();
+            uiMgr = new GameUIManager();
+            
+
+            if (!locateMgr.IsInit)
+            {
+                locateMgr.InitLocateSystem(locateMgr.GetLanguageFromFile());
+            }
+            
+            Update += modMgr.Update;
+            Update += mapMgr.Update;
+            Update += outputMgr.Update;
+            Update += soundMgr.Update;
+            Update += uiMgr.Update;
+            
+            return true;
+        }
+
+        private void InitGame()
+        {
+            
+        }
+
+        public void Exit()
+        {
+            LocateSystem.Singleton.SaveLocateFile();
+            GameManager.Instance.mLog.LogMessage("Game Quit!");
+        }
+
+        public void UpdateRender(double timeSinceLastFrame)
+        {
+        }
+
+        public void UpdateGame(double timeSinceLastFrame)
+        {
+            foreach (var eachGameObj in AllGameObjects)
+            {
+                eachGameObj.Value.Update((float)timeSinceLastFrame);
+            }
         }
 
         public bool keyPressed(KeyEvent keyEventRef)
         {
-             if(mKeyboard.IsKeyDown(MOIS.KeyCode.KC_V))
+            if(mKeyboard.IsKeyDown(MOIS.KeyCode.KC_V))
             {
-                mRenderWnd.WriteContentsToTimestampedFile("AMOF_Screenshot_", ".jpg");
+                mRenderWnd.WriteContentsToTimestampedFile("AMGE_ScreenShot_", ".jpg");
+                outputMgr.DisplayMessage(string.Format(locateMgr.GetLocalizedString(LocateFileType.GameString,"str_screenshots_saved_to_{0}"), Environment.CurrentDirectory));
                 return true;
             }
  
@@ -196,6 +265,15 @@ namespace AMOFGameEngine
                     mTrayMgr.showFrameStats(TrayLocation.TL_BOTTOMLEFT);
                     mTrayMgr.showLogo(TrayLocation.TL_BOTTOMRIGHT);
                 }
+            }
+
+            if (mKeyboard.IsKeyDown(KeyCode.KC_HOME))
+            {
+            }
+
+            if (mKeyboard.IsKeyDown(KeyCode.KC_LSHIFT) && mKeyboard.IsKeyDown(KeyCode.KC_SPACE))
+            {
+                mRenderWnd.SetFullscreen(!mRenderWnd.IsFullScreen, Convert.ToUInt32(videoMode["Width"]), Convert.ToUInt32(videoMode["Height"]));
             }
  
             return true;
@@ -221,7 +299,11 @@ namespace AMOFGameEngine
         {
             return System.Math.Max(System.Math.Min(val, maxval), minval);
         }
-        
+
+        void console_showHelp(List<string> args)
+        {
+
+        }
 
         public void Dispose()
         {
