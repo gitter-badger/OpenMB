@@ -6,9 +6,17 @@ using System.Threading;
 using Mogre;
 using MOIS;
 using AMOFGameEngine.Sound;
+using Mogre.PhysX;
+using org.critterai.nav;
 
 namespace AMOFGameEngine.Game
 {
+    public enum CharacterState
+    {
+        Seek,
+        Attack,
+        Flee
+    }
     /// <summary>
     /// Specific Characer in Game
     /// </summary>
@@ -16,6 +24,11 @@ namespace AMOFGameEngine.Game
     {
         //Unique Id
         private int id;
+        private CharacterState currentState;
+        private Character currentEnemy;
+        private Item currentWieldWeapon;
+        public event Action<int, int, double> OnCharacterUseWeaponAttack;
+        public event Action<int> OnCharacterDie;
 
         public int Id
         {
@@ -101,7 +114,7 @@ namespace AMOFGameEngine.Game
         /// <param name="name">Name</param>
         /// <param name="meshName">Mesh Name</param>
         /// <param name="initPosition">Init Position</param>
-        /// <param name="isBot">Is Bot or not</param>
+        /// <param name="controlled">Is Bot or not</param>
         public Character(GameWorld world, 
                          Camera cam, 
                          int id,
@@ -109,17 +122,99 @@ namespace AMOFGameEngine.Game
                          string name,
                          string meshName,
                          Mogre.Vector3 initPosition,
-                         bool isBot)
+                         bool controlled)
         {
             mWorld = world;
             Id = id;
             Name = string.Empty;
             Hitpoint = 100;
-            Weapons = new Item[4];
-            Clothes = new Item[4];
+            Weapons = new Item[5];
+            Clothes = new Item[5];
             Backpack = new Inventory(21, this);
-            controller = new CharacterController(cam, name + id.ToString(), meshName, isBot);//初始化控制器
+            controller = new CharacterController(cam,world.GetCurrentMap().NavmeshQuery,world.GetCurrentMap().PhysicsScene, name + id.ToString(), meshName, controlled);//初始化控制器
             controller.Position = initPosition;
+            currentEnemy = null;
+            currentWieldWeapon = new Fist(cam, world.GetCurrentMap().PhysicsScene, -1, id);
+            currentWieldWeapon.OnWeaponAttack += CurrentWieldWeapon_OnWeaponAttack;
+            currentState = CharacterState.Seek;
+        }
+
+        private void CurrentWieldWeapon_OnWeaponAttack(int arg1, int arg2)
+        {
+            if (OnCharacterUseWeaponAttack != null)
+            {
+                OnCharacterUseWeaponAttack(arg1, arg2, currentWieldWeapon.Damage);
+            }
+        }
+
+        public bool GetControlled()
+        {
+            return controller.GetControlled();
+        }
+
+        public void WalkTo(Mogre.Vector3 position)
+        {
+            controller.WalkTo(position);
+        }
+
+        /// <summary>
+        /// Check the environment, find the enemy and destroy it!
+        /// </summary>
+        private void CheckEnvironment()
+        {
+            //Find the closest enemy
+            Mogre.Vector3 targetPosition = new Mogre.Vector3();
+            float distance = -1;
+            if (currentEnemy == null)
+            {
+                int agentNum = mWorld.GetAllCharacters().Count;
+                float lastDistance = -1;
+                for (int i = 0; i < agentNum; i++)
+                {
+                    Character chara = mWorld.GetCurrentMap().GetAgents()[i];
+                    distance = (Controller.Position - chara.Controller.Position).SquaredLength;
+                    if (lastDistance == -1)
+                    {
+                        lastDistance = distance;
+                    }
+                    else
+                    {
+                        if (lastDistance > distance)
+                        {
+                            lastDistance = distance;
+                            targetPosition = chara.Controller.Position;
+                            currentEnemy = chara;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                //Choose a weapon and prepare to attack
+                if (currentWieldWeapon == null)
+                {
+                    if (weapons == null || weapons.Length == 0)
+                    {
+
+                    }
+                    else
+                    {
+                        currentWieldWeapon = weapons[0];
+                    }
+                }
+                distance = (Controller.Position - currentEnemy.Controller.Position).Length;
+                //Keep walking util enemy engaged
+                while (distance > currentWieldWeapon.Range)
+                {
+                    WalkTo(targetPosition);
+                }
+                //Attack the enemy until it die!
+                while (currentEnemy.Hitpoint > 0)
+                {
+                    currentWieldWeapon.Attack(currentEnemy.Id);
+                    controller.Attack();
+                }
+            }
         }
 
         public void WearHat(Item item)
@@ -185,6 +280,65 @@ namespace AMOFGameEngine.Game
         public void Turn(string newTeamId)
         {
             teamId = newTeamId;
+        }
+
+        public override void Update(float timeSinceLastFrame)
+        {
+            //FSM
+            switch(currentState)
+            {
+                case CharacterState.Seek:
+                    List<Character> enemies = FindEnemies();
+                    if (enemies.Count > 0)
+                    {
+                        currentEnemy = enemies[0];
+                        currentState = CharacterState.Attack;
+                    }
+                    break;
+                case CharacterState.Attack:
+                    if (currentEnemy != null)
+                    {
+                        WalkTo(currentEnemy.controller.Position);
+                        if((currentEnemy.controller.Position-controller.Position).Length <= currentWieldWeapon.Range)//Enemy in range
+                        {
+                            Attack();
+                        }
+                        else
+                        {
+                            Run();
+                        }
+                    }
+                    else
+                    {
+                        currentState = CharacterState.Seek;
+                    }
+                    break;
+                case CharacterState.Flee:
+                    break;
+            }
+            controller.update(timeSinceLastFrame);
+            if (Hitpoint < 0)
+            {
+                //R.I.P
+                if (OnCharacterDie != null)
+                {
+                    OnCharacterDie(id);
+                }
+            }
+            else
+            {
+                //CheckEnvironment();
+            }
+        }
+
+        private void Run()
+        {
+            controller.Run();
+        }
+
+        private void Attack()
+        {
+            controller.Attack();
         }
     }
 }

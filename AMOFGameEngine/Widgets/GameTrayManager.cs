@@ -8,23 +8,36 @@ using MOIS;
 
 namespace AMOFGameEngine.Widgets
 {
-    public class GameTrayManager : SdkTrayManager
+    public static class GameTrayManager
     {
-        public GameTrayManager(string name,RenderWindow win,Mouse mouse,SdkTrayListener listener) :base(name,win,mouse,listener)
-        {
-
-        }
-
-        public InputBox createInputBox(TrayLocation trayLoc, string name, string caption,float width, float boxWidth, string text=null, bool onlyAcceptNum=false)
+        public static InputBox createInputBox(this SdkTrayManager trayMgr, TrayLocation trayLoc, string name, string caption,float width, float boxWidth, string text=null, bool onlyAcceptNum=false)
         {
             InputBox ib = new InputBox(name, caption, width, boxWidth, text, onlyAcceptNum);
-            this.moveWidgetToTray(ib, trayLoc);
+            trayMgr.moveWidgetToTray(ib, trayLoc);
             ib.Text = text;
-            ib._assignListener(mListener);
+            //ib._assignListener(mListener);
             return ib;
         }
+        public static Panel createPanel(this SdkTrayManager trayMgr, TrayLocation trayLoc, string name)
+        {
+            Panel panel = new Panel(name);
+            trayMgr.moveWidgetToTray(panel, trayLoc);
+            return panel;
+        }
+        public static Panel createPanel(this SdkTrayManager trayMgr, TrayLocation trayLoc, string name, float width, float height)
+        {
+            Panel panel = new Panel(name, width, height);
+            trayMgr.moveWidgetToTray(panel, trayLoc);
+            return panel;
+        }
+        public static Panel createPanel(this SdkTrayManager trayMgr, TrayLocation trayLoc, string name, float width, float height, float left, float top)
+        {
+            Panel panel = new Panel(name, width, height, left, top);
+            trayMgr.moveWidgetToTray(panel, trayLoc);
+            return panel;
+        }
 
-        public ListView createListView(TrayLocation trayLoc, string name, float height, float width, List<string> columnNames)
+        public static ListView createListView(this SdkTrayManager trayMgr, TrayLocation trayLoc, string name, float height, float width, List<string> columnNames)
         {
             ListView lsv = new ListView(name, -1, -1, height, width, columnNames);
             //this.moveWidgetToTray(lsv,trayLoc);

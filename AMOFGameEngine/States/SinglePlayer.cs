@@ -1,12 +1,9 @@
 ﻿using System;
 using System.ComponentModel;
 using Mogre;
-using Mogre_Procedural.MogreBites.Addons;
 using MMOC;
 using AMOFGameEngine.Mods;
 using AMOFGameEngine.Game;
-using AMOFGameEngine.UI;
-using AMOFGameEngine.Maps;
 using MOIS;
 
 namespace AMOFGameEngine.States
@@ -18,7 +15,7 @@ namespace AMOFGameEngine.States
         {
         }
 
-        public override void enter(Mods.ModData data = null)
+        public override void enter(ModData data = null)
         {
             world = new GameWorld(data);
             world.Init();
@@ -43,7 +40,7 @@ namespace AMOFGameEngine.States
 
         public override void exit()
         {
-            m_Data = world.ModData;
+            m_Data = world.GetCurrentMap().ModData;
             world.Destroy();
         }
     }

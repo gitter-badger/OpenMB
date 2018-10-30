@@ -4,11 +4,15 @@ using System.Linq;
 using System.Text;
 using Mogre;
 using MOIS;
+using org.critterai.nav;
+using Mogre.PhysX;
+using AMOFGameEngine.Sound;
+using AMOFGameEngine.Utilities;
 
 namespace AMOFGameEngine.Game
 {
     /// <summary>
-    /// 游戏角色使用的控制器
+    /// Controller used by Character
     /// </summary>
     public class CharacterController
     {
@@ -42,6 +46,14 @@ namespace AMOFGameEngine.Game
         private float mTimer;                // general timer to see how long animations have been playing
         private string charaName;
         private string charaMeshName;
+        private bool mControlled;
+        private NavmeshQuery mQuery;
+        private Actor mActor;
+        private Physics mPhysics;
+        private Scene mPhysicsScene;
+        private Mogre.Vector3 mTargetDestinaton;
+        private float mDistance;
+        private Mogre.Vector3 mDirection;
         public Mogre.Vector3 Position
         {
             get
@@ -53,6 +65,28 @@ namespace AMOFGameEngine.Game
                 mBodyNode.Position = value;
             }
         }
+        public Mogre.Vector3 Direction
+        {
+            get
+            {
+                return mDirection;
+            }
+            set
+            {
+                mDirection = value;
+            }
+        }
+
+        public void Attack()
+        {
+
+            //Play Attack animation
+            mBaseAnimID = AnimID.ANIM_SLICE_VERTICAL;
+            mTopAnimID = AnimID.ANIM_SLICE_VERTICAL;
+            setBaseAnimation(mBaseAnimID);
+            setTopAnimation(mTopAnimID);
+        }
+
         enum AnimID
         {
             ANIM_IDLE_BASE,
@@ -72,19 +106,53 @@ namespace AMOFGameEngine.Game
         };
 
         List<Entity> itemAttached;//Item that attached to character
+        private Queue<Mogre.Vector3> mWalkList;
 
-        public CharacterController(Camera cam,string name, string meshName, bool isBot)
+        public CharacterController(
+            Camera cam,
+            NavmeshQuery query,
+            Scene physicsScene,
+            string name, 
+            string meshName, 
+            bool controlled)
         {
+            mCamera = cam;
+            mControlled = controlled;
             itemAttached = new List<Entity>();
             this.mSceneMgr = cam.SceneManager;
             charaName = name;
             charaMeshName = meshName;
+            mPhysicsScene = physicsScene;
+            mPhysics = physicsScene.Physics;
+            mQuery = query;
             setupBody();
-            if (!isBot)
+            mTargetDestinaton = Mogre.Vector3.ZERO;
+            if (controlled)
             {
                 setupCamera(cam);
             }
             setupAnimations();
+            setupPhysics();
+        }
+
+        private void setupPhysics()
+        {
+            BodyDesc bodyDesc = new BodyDesc();
+            bodyDesc.LinearVelocity = new Mogre.Vector3(0, 2, 5);
+
+            ActorDesc actorDesc = new ActorDesc();
+            actorDesc.Density = 4;
+            actorDesc.Body = bodyDesc;
+            actorDesc.GlobalPosition = mBodyNode.Position;
+            actorDesc.GlobalOrientation = mBodyNode.Orientation.ToRotationMatrix();
+
+            // a quick trick the get the size of the physics shape right is to use the bounding box of the entity
+            actorDesc.Shapes.Add(
+                mPhysics.CreateConvexHull(new
+                StaticMeshData(mBodyEnt.GetMesh())));
+
+            // finally, create the actor in the physics scene
+            mActor = mPhysicsScene.CreateActor(actorDesc);
         }
 
         /// <summary>
@@ -148,11 +216,19 @@ namespace AMOFGameEngine.Game
         /// Update Character
         /// </summary>
         /// <param name="deltaTime"></param>
-        public void addTime(float deltaTime)
+        public void update(float deltaTime)
         {
             updateBody(deltaTime);
             updateAnimations(deltaTime);
-            updateCamera(deltaTime);
+            if (mControlled)
+            {
+                updateCamera(deltaTime);
+            }
+            WalkState(deltaTime);
+
+            mPhysicsScene.FlushStream();
+            mPhysicsScene.FetchResults(SimulationStatuses.AllFinished, true);
+            mPhysicsScene.Simulate(deltaTime);
         }
 
         public void injectKeyDown(KeyEvent evt)
@@ -178,7 +254,7 @@ namespace AMOFGameEngine.Game
                     // stop dancing
                     setBaseAnimation(AnimID.ANIM_IDLE_BASE);
                     setTopAnimation(AnimID.ANIM_IDLE_TOP);
-                    // re-enable hand animation
+                    // re-enable hand animation-
                     mAnims[(int)AnimID.ANIM_HANDS_RELAXED].Enabled = true;
                 }
             }
@@ -197,12 +273,24 @@ namespace AMOFGameEngine.Game
                 mTimer = 0;
             }
 
+            else if(evt.key == KeyCode.KC_C)
+            {
+                //Battle Cry
+                SoundManager.Instance.PlaySoundAtNode(mBodyNode,"battle_cry_1");
+            }
+
             if (!mKeyDirection.IsZeroLength && mBaseAnimID == AnimID.ANIM_IDLE_BASE)
             {
                 // start running if not already moving and the player wants to move
                 setBaseAnimation(AnimID.ANIM_RUN_BASE, true);
                 if (mTopAnimID == AnimID.ANIM_IDLE_TOP) setTopAnimation(AnimID.ANIM_RUN_TOP, true);
             }
+        }
+
+        public void Run()
+        {
+            setBaseAnimation(AnimID.ANIM_RUN_BASE);
+            setTopAnimation(AnimID.ANIM_RUN_TOP);
         }
 
         public void injectKeyUp(KeyEvent evt)
@@ -222,7 +310,10 @@ namespace AMOFGameEngine.Game
 
         public void injectMouseMove(MouseEvent evt)
         {
-            updateCameraGoal(-0.05f * evt.state.X.rel, -0.05f * evt.state.Y.rel, -0.0005f * evt.state.Z.rel);
+            if (mControlled)
+            {
+                updateCameraGoal(-0.05f * evt.state.X.rel, -0.05f * evt.state.Y.rel, -0.0005f * evt.state.Z.rel);
+            }
         }
 
         public void injectMouseDown(MouseEvent evt, MouseButtonID id)
@@ -289,7 +380,7 @@ namespace AMOFGameEngine.Game
 
             // our model is quite small, so reduce the clipping planes
             cam.NearClipDistance = 0.1f;
-            cam.FarClipDistance = 100;
+            cam.FarClipDistance = 10000f;
             mCameraNode.AttachObject(cam);
 
             mPivotPitch = 0;
@@ -550,6 +641,84 @@ namespace AMOFGameEngine.Game
                 mFadingOut[(int)id] = false;
                 mFadingIn[(int)id] = true;
                 if (reset) mAnims[(int)id].TimePosition = 0;
+            }
+        }
+        public bool GetControlled()
+        {
+            return mControlled;
+        }
+
+        public void WalkTo(Mogre.Vector3 position)
+        {
+            mWalkList = new Queue<Mogre.Vector3>();
+
+            float a = (position.z - Position.z) / (position.x - Position.x);
+            float b = position.z - a * position.x;
+
+            for (int i = 0; i < Mogre.Math.Abs(position.x - Position.x) / 5; i++)
+            {
+                mWalkList.Enqueue(new Mogre.Vector3(position.x + i, 0, a * (position.x + i) + b));
+            }
+        }
+
+        private void WalkState(float deltaTime)
+        {
+            if (Direction == Mogre.Vector3.ZERO)
+            {
+                if (nextLocation())
+                {
+                    setTopAnimation(AnimID.ANIM_RUN_TOP, true);
+                    setBaseAnimation(AnimID.ANIM_RUN_TOP, true);
+                }
+            }
+            else
+            {
+                float move = RUN_SPEED * deltaTime;
+                mDistance -= move;
+                if (mDistance <= 0.0f)
+                {
+                    mBodyNode.SetPosition(mTargetDestinaton.x, mTargetDestinaton.y, mTargetDestinaton.z);
+                    mDirection = Mogre.Vector3.ZERO;
+                    if (!nextLocation())
+                    {
+                        setTopAnimation(AnimID.ANIM_IDLE_TOP, true);
+                        setBaseAnimation(AnimID.ANIM_IDLE_BASE, true);
+                    }
+                    else
+                    {
+                        Mogre.Vector3 src = mBodyNode.Orientation * Mogre.Vector3.UNIT_Z;
+                        if ((1.0f + src.DotProduct(Direction)) < 0.0001f)
+                        {
+                            mBodyNode.Yaw(new Degree(180));
+                        }
+                        else
+                        {
+                            Quaternion quat = src.GetRotationTo(Direction);
+                            mBodyNode.Rotate(quat);
+                        }
+                    }
+                }
+                else
+                {
+                    mBodyNode.Translate(Direction * move);
+                }
+            }
+        }
+
+        private bool nextLocation()
+        {
+            if (mWalkList != null)
+            {
+                if (mWalkList.Count == 0)
+                    return false;
+                mTargetDestinaton = mWalkList.Dequeue(); 
+                mDirection = mTargetDestinaton - mBodyNode.Position;
+                mDistance = mDirection.Normalise();
+                return true;
+            }
+            else
+            {
+                return false;
             }
         }
     }

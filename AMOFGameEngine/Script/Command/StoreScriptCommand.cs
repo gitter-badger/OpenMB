@@ -6,19 +6,19 @@ using System.Text;
 
 namespace AMOFGameEngine.Script.Command
 {
-    public class StoreScriptCommand : IScriptCommand
+    public class StoreScriptCommand : ScriptCommand
     {
         private ScriptContext context;
         public StoreScriptCommand(ScriptContext context)
         {
             this.context = context;
         }
-        public object[] CommandArgs
+        public override string[] CommandArgs
         {
             get;
         }
 
-        public string CommandName
+        public override string CommandName
         {
             get
             {
@@ -26,7 +26,15 @@ namespace AMOFGameEngine.Script.Command
             }
         }
 
-        public void Execute(params object[] executeArgs)
+        public override ScriptCommandType CommandType
+        {
+            get
+            {
+                return ScriptCommandType.Line;
+            }
+        }
+
+        public override void Execute(params object[] executeArgs)
         {
             if(CommandArgs.Length == 2)
             {
@@ -37,30 +45,25 @@ namespace AMOFGameEngine.Script.Command
                 {
                     if (srcVar.StartsWith("%"))
                     {
-                        context.ChangeValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), context.GetValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
+                        context.ChangeLocalValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), context.GetLocalValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
                     }
                     else if (srcVar.StartsWith("$"))
                     {
-                        context.ChangeValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), world.GetValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
+                        context.ChangeLocalValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), world.GetGlobalValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
                     }
                 }
                 else if (destVar.StartsWith("$"))//global var
                 {
                     if (srcVar.StartsWith("%"))
                     {
-                        world.ChangeValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), context.GetValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
+                        world.ChangeGobalValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), context.GetLocalValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
                     }
                     else if (srcVar.StartsWith("$"))
                     {
-                        world.ChangeValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), world.GetValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
+                        world.ChangeGobalValue(destVar.Substring(1, destVar.IndexOf(destVar.Last())), world.GetGlobalValue(srcVar.Substring(1, srcVar.IndexOf(srcVar.Last()))));
                     }
                 }
             }
-        }
-
-        public void PushArg(string cmdArg, int index)
-        {
-            throw new NotImplementedException();
         }
     }
 }

@@ -6,19 +6,19 @@ using System.Text;
 
 namespace AMOFGameEngine.Script.Command
 {
-    class AssignScriptCommand : IScriptCommand
+    class AssignScriptCommand : ScriptCommand
     {
         private ScriptContext context;
         public AssignScriptCommand(ScriptContext context)
         {
             this.context = context;
         }
-        public object[] CommandArgs
+        public override string[] CommandArgs
         {
             get;
         }
 
-        public string CommandName
+        public override string CommandName
         {
             get
             {
@@ -26,7 +26,15 @@ namespace AMOFGameEngine.Script.Command
             }
         }
 
-        public void Execute(params object[] executeArgs)
+        public override ScriptCommandType CommandType
+        {
+            get
+            {
+                return ScriptCommandType.Line;
+            }
+        }
+
+        public override void Execute(params object[] executeArgs)
         {
             if (CommandArgs.Length == 2)
             {
@@ -37,22 +45,17 @@ namespace AMOFGameEngine.Script.Command
 
                 if(varname.StartsWith("%"))//local var
                 {
-                    context.ChangeValue(varname.Substring(1, varname.IndexOf(varname.Last())), varvalue);
+                    context.ChangeLocalValue(varname.Substring(1, varname.IndexOf(varname.Last())), varvalue);
                 }
                 else if(varname.StartsWith("$"))//global var
                 {
-                    world.ChangeValue(varname.Substring(1, varname.IndexOf(varname.Last())), varvalue);
+                    world.ChangeGobalValue(varname.Substring(1, varname.IndexOf(varname.Last())), varvalue);
                 }
             }
             else
             {
                 GameManager.Instance.mLog.LogMessage("[Script Error]: Assign: Invalid argument number");
             }
-        }
-
-        public void PushArg(string cmdArg, int index)
-        {
-            CommandArgs[index] = cmdArg;
         }
     }
 }

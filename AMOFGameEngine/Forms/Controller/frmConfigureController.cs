@@ -14,13 +14,14 @@ namespace AMOFGameEngine.Forms.Controller
     {
         private Root r;
         private LOCATE selectedlocate;
-        private AMOFGameEngine.Utilities.ConfigFile cf;
+        private AMOFGameEngine.Utilities.ConfigFile gameCfg;
         private AMOFGameEngine.Utilities.ConfigFile ogreCfg;
         private ConfigFileParser parser;
         public frmConfigure form;
         public AudioConfigure AudioConfig;
         public GameConfigure GameConfig;
         public GraphicConfigure GraphicConfig;
+        //public event Action GraphicRenderSystemChanged;
         public LOCATE CurrentLoacte
         {
             get
@@ -38,7 +39,7 @@ namespace AMOFGameEngine.Forms.Controller
             GraphicConfig = new GraphicConfigure();
 
             parser = new ConfigFileParser();
-            cf = parser.Load("game.cfg");
+            gameCfg = parser.Load("game.cfg");
             ogreCfg = parser.Load("ogre.cfg");
             r = new Root();
 
@@ -55,9 +56,10 @@ namespace AMOFGameEngine.Forms.Controller
 
         private void LoadGameConfigure()
         {
-            selectedlocate = LocateSystem.Singleton.ConvertLocateShortStringToLocateInfo(cf["Localized"]["Current"]);
+            selectedlocate = LocateSystem.Singleton.ConvertLocateShortStringToLocateInfo(gameCfg["Localized"]["Current"]);
             GameConfig.CurrentSelectedLocate = LocateSystem.Singleton.CovertLocateInfoStringToReadableString(selectedlocate.ToString());
             GameConfig.AvaliableLocates.Clear();
+            GameConfig.IsEnableEditMode = gameCfg["Game"]["EditMode"] == "1" ? true : false;
             DirectoryInfo di = new DirectoryInfo("./locate/");
             FileSystemInfo[] fsi = di.GetFileSystemInfos();
             foreach (var dir in fsi)
@@ -83,11 +85,12 @@ namespace AMOFGameEngine.Forms.Controller
                 }
             }
             GraphicConfig.RenderSystem = ogreCfg[""]["Render System"];
+            GetGraphicSettingsByName(GraphicConfig.RenderSystem);
         }
 
         private void LoadAudioConfigure()
         {
-            if (cf["Audio"]["EnableSound"] == "1")
+            if (gameCfg["Audio"]["EnableSound"] == "1")
             {
                 AudioConfig.IsEnableSound = true;
             }
@@ -95,7 +98,7 @@ namespace AMOFGameEngine.Forms.Controller
             {
                 AudioConfig.IsEnableSound = false;
             }
-            if (cf["Audio"]["EnableMusic"] == "1")
+            if (gameCfg["Audio"]["EnableMusic"] == "1")
             {
                 AudioConfig.IsEnableMusic = true;
             }
@@ -109,12 +112,13 @@ namespace AMOFGameEngine.Forms.Controller
         {
             GraphicConfig.RenderParams.Clear();
             List<ConfigFileKeyValuePair> dic = ogreCfg[renderSystemName].KeyValuePairs;
+            ConfigOptionMap configOptionMap = r.GetRenderSystemByName(renderSystemName).GetConfigOptions();
             List<string> graphicSettings = new List<string>();
             if (dic != null)
             {
                 for (int i = 0; i < dic.Count; i++)
                 {
-                    GraphicConfig.RenderParams.Add(dic[i].Key + ":" + dic[i].Value);
+                    GraphicConfig.RenderParams.Add(dic[i].Key + ":" + (configOptionMap[dic[i].Key].possibleValues.Contains(dic[i].Value) ? dic[i].Value : configOptionMap[dic[i].Key].possibleValues[0]));
                 }
             }
         }
@@ -144,8 +148,21 @@ namespace AMOFGameEngine.Forms.Controller
             gameOptions.Add("IsEnableMusic", AudioConfig.IsEnableMusic.ToString());
             gameOptions.Add("IsEnableSound", AudioConfig.IsEnableSound.ToString());
             gameOptions.Add("Language", GameConfig.CurrentSelectedLocate.ToString());
+            gameOptions.Add("IsEnableEditMode", GameConfig.IsEnableEditMode.ToString());
 
-            parser.Save(cf);
+            ogreCfg[""]["Render System"] = GraphicConfig.RenderSystem;
+            var kpls = ogreCfg[GraphicConfig.RenderSystem].KeyValuePairs;
+            int length = kpls.Count;
+            for (int i = 0; i < length; i++)
+            {
+                kpls[i].Value = GraphicConfig.RenderParams[i].Split(':')[1];
+            }
+            gameCfg["Audio"]["EnableMusic"] = AudioConfig.IsEnableMusic ? "1" : "0";
+            gameCfg["Audio"]["EnableSound"] = AudioConfig.IsEnableSound ? "1" : "0";
+            gameCfg["Localized"]["Current"] = LocateSystem.Singleton.CovertReadableStringToLocateShortString(GameConfig.CurrentSelectedLocate);
+            gameCfg["Game"]["EditMode"] = GameConfig.IsEnableEditMode ? "1" : "0";
+
+            parser.Save(gameCfg);
             parser.Save(ogreCfg);
 
             return new Tuple<Dictionary<string,string>,Utilities.ConfigFile>(gameOptions, ogreCfg);

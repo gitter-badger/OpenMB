@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Mogre;
+using Mogre.PhysX;
+using AMOFGameEngine.Utilities;
 
 namespace AMOFGameEngine.Game
 {
@@ -12,23 +14,29 @@ namespace AMOFGameEngine.Game
     /// </summary>
     public enum ItemType
     {
-        IT_INVALID,     //default value
-        IT_GOOD,        //Good
-        IT_BOOK,        //Book
-        IT_AMMUNITION,  //Ammo
-        IT_HEAD_ARMOUR, //头防
-        IT_BODY_ARMOUR, //身防
-        IT_FOOT_ARMOUR, //腿防
-        IT_HAND_ARMOUR,  //手防
-        IT_ONE_HAND_WEAPON, //单手
-        IT_TWO_HAND_WEAPON, //双手
-        IT_POLEARM,         //长杆
-        IT_BOW,              //弓
-        IT_CROSSBOW,          //弩
-        IT_THROWN,            //投掷
-        IT_RIFLE,             //步枪
-        IT_PISTOL,            //手枪
-        IT_HEAVYWEAPON        //重武器
+        IT_INVALID,             //default value
+        IT_AMMUNITION,          //Ammo
+        IT_GOOD,                //Good
+        IT_BOOK,                //Book
+        IT_HEAD_ARMOUR,         //Head Armour
+        IT_BODY_ARMOUR,         //Body Armour
+        IT_FOOT_ARMOUR,         //Foot Armour
+        IT_HAND_ARMOUR,         //Hand Armour
+        IT_ONE_HAND_WEAPON,     //One Hand Melee Weapon
+        IT_TWO_HAND_WEAPON,     //Two Hand Melee Weapon
+        IT_POLEARM,             //Polearm Melee Weapon
+        IT_BOW,                 //Bow
+        IT_CROSSBOW,            //Crossbow
+        IT_THROWN,              //Throw
+        IT_RIFLE,               //Rifle
+        IT_PISTOL,              //Pistol
+        IT_SUBMACHINE_GUN,      //Submachine Gun
+        IT_LIGHT_MACHINE_GUN,   //Light Machine Gun
+        IT_LAUNCHER,            //RPG Launcher
+        IT_ARROW,               //Arrow
+        IT_BOLT,                //Bolt
+        IT_RPG_MISSILE,         //Missile for RPG Launcher
+        IT_BULLET               //Bullet for Gun
     }
 
     public enum ItemAttachOption
@@ -43,53 +51,32 @@ namespace AMOFGameEngine.Game
     /// <summary>
     /// Item class
     /// </summary>
-    public abstract class Item : GameObject
+    public class Item : GameObject
     {
         protected int itemID;
+        protected int ownerID;
         protected string itemName;
         protected string itemMeshName;
         protected ItemType itemType;
         protected ItemAttachOption itemAttachOption;
+        protected List<Cartridge> cartridges;
         private Character user;
+        public event Action<int, int> OnWeaponAttack;
 
-        Entity itemEnt;
-        SceneNode itemNode;
-        Camera cam;
-
-        public Item(Camera cam, int id)
-        {
-            this.itemID = id;
-            this.itemName = "";
-            this.itemMeshName = "";
-            this.itemType = ItemType.IT_INVALID;
-            this.cam = cam;
-            Create();
-        }
-
-        public Item(string itemName, string itemMeshName, ItemType itemType, Camera cam)
-        {
-            this.itemName = itemName;
-            this.itemMeshName = itemMeshName;
-            this.itemType = itemType;
-            this.cam = cam;
-        }
-
-        private void Create()
-        {
-            itemEnt = cam.SceneManager.CreateEntity(itemName,itemMeshName);
-        }
-
-        public void Drop()
-        {
-            itemNode = cam.SceneManager.RootSceneNode.CreateChildSceneNode();
-            itemNode.AttachObject(itemEnt);
-        }
+        #region Render
+        private Entity itemEnt;
+        private SceneNode itemNode;
+        private Camera cam;
+        private Actor itemActor;
+        private Physics physics;
+        private Scene physicsScene;
+        #endregion
 
         public int ItemID
         {
             get { return itemID; }
         }
-        public ItemType ItemType
+        public virtual ItemType ItemType
         {
             get { return itemType; }
             set { itemType = value; }
@@ -118,6 +105,95 @@ namespace AMOFGameEngine.Game
         {
             get { return user; }
             set { user = value; }
+        }
+
+        public virtual int Range { get; set; }
+        public virtual double Damage { get; set; }
+
+        public virtual Type Ammo { get; set; }
+        public virtual int AmmoCapcity { get; set; }
+
+        public Item(Camera cam, Scene physicsScene, int id, int ownerID = -1)
+        {
+            this.itemID = id;
+            this.itemName = "";
+            this.itemMeshName = "";
+            this.itemType = ItemType.IT_INVALID;
+            this.cam = cam;
+            this.physicsScene = physicsScene;
+            this.physics = physicsScene.Physics;
+            this.ownerID = ownerID;
+            //Create();
+        }
+
+        public Item(string itemName, string itemMeshName, ItemType itemType, Scene physicsScene, Camera cam)
+        {
+            this.itemName = itemName;
+            this.itemMeshName = itemMeshName;
+            this.itemType = itemType;
+            this.cam = cam;
+            this.physicsScene = physicsScene;
+            this.physics = physicsScene.Physics;
+            Create();
+        }
+
+        public void Attack(int victimId)
+        {
+            if (OnWeaponAttack != null)
+            {
+                OnWeaponAttack(ownerID, victimId);
+            }
+        }
+
+        private void Create()
+        {
+            itemEnt = cam.SceneManager.CreateEntity(itemName,itemMeshName);
+            itemNode = cam.SceneManager.RootSceneNode.CreateChildSceneNode();
+            itemNode.AttachObject(itemEnt);
+
+            ActorDesc actorDesc = new ActorDesc();
+            actorDesc.Density = 4;
+            actorDesc.Body = null;
+            actorDesc.Shapes.Add(physics.CreateTriangleMesh(new
+                StaticMeshData(itemEnt.GetMesh())));
+            itemActor = physicsScene.CreateActor(actorDesc);
+        }
+
+        public void Drop()
+        {
+            itemNode.DetachObject(ItemEnt);
+        }
+
+        /// <summary>
+        /// Use Item to attack animation
+        /// </summary>
+        public virtual void OnAttackAnimation()
+        {
+            
+        }
+
+        /// <summary>
+        /// Play animation when the item be draw from the backpack
+        /// </summary>
+        public virtual void OnDrawItemAnimation()
+        {
+
+        }
+
+        /// <summary>
+        /// Play animation when hold this item in character's hand
+        /// </summary>
+        public virtual void OnHoldItemAnimation()
+        {
+
+        }
+
+        /// <summary>
+        /// Play animation when reload the item
+        /// </summary>
+        public virtual void OnItemReloadAnimation()
+        {
+
         }
     }
 }

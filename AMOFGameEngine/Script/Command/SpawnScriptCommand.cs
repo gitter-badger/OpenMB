@@ -8,25 +8,23 @@ using System.Text;
 
 namespace AMOFGameEngine.Script.Command
 {
-    public class SpawnScriptCommand : IScriptCommand
+    public class SpawnScriptCommand : ScriptCommand
     {
         public SpawnScriptCommand()
         {
-            CommandArgs = new object[] {
+            CommandArgs = new string[] {
                 "CharacterType",
                 "CharacterID",
                 "CharacterTeam",
-                "SpawnX",
-                "SpawnY",
-                "SpawnZ"
+                "SpawnVector"
             };
         }
-        public object[] CommandArgs
+        public override string[] CommandArgs
         {
             get;
         }
 
-        public string CommandName
+        public override string CommandName
         {
             get
             {
@@ -34,16 +32,22 @@ namespace AMOFGameEngine.Script.Command
             }
         }
 
-        public void Execute(params object[] executeArgs)
+        public override ScriptCommandType CommandType
         {
-            string characterType = CommandArgs[0].ToString();
-            string characterID = CommandArgs[1].ToString();
-            string characterTeam = CommandArgs[2].ToString();
-            string spawnX = CommandArgs[3].ToString();
-            string spawnY = CommandArgs[4].ToString();
-            string spawnZ = CommandArgs[5].ToString();
+            get
+            {
+                return ScriptCommandType.Line;
+            }
+        }
 
+        public override void Execute(params object[] executeArgs)
+        {
+            string characterType = CommandArgs[0].StartsWith("%") ? Context.GetLocalValue(CommandArgs[0].Substring(1)): CommandArgs[0];
+            string characterID = CommandArgs[1].StartsWith("%") ? Context.GetLocalValue(CommandArgs[1].Substring(1)) : CommandArgs[1];
+            string characterTeam = CommandArgs[2].StartsWith("%") ? Context.GetLocalValue(CommandArgs[2].Substring(1)) : CommandArgs[2];
+            string vectorName = CommandArgs[3].StartsWith("%") ? Context.GetLocalValue(CommandArgs[3].Substring(1)) : CommandArgs[3];
             GameWorld world = executeArgs[0] as GameWorld;
+            var vector = world.GlobalValueTable.GetRecord(vectorName);
             bool isBot = false;
             if(characterType == "player")
             {
@@ -56,14 +60,12 @@ namespace AMOFGameEngine.Script.Command
 
             world.SpawnNewCharacter(
                 characterID,
-                new Vector3(float.Parse(spawnX),float.Parse(spawnY), float.Parse(spawnZ)), 
+                new Vector3(
+                    float.Parse(vector.NextNodes[0].Value),
+                    float.Parse(vector.NextNodes[1].Value), 
+                    float.Parse(vector.NextNodes[2].Value)), 
                 characterTeam,
                 isBot);
-        }
-
-        public void PushArg(string cmdArg ,int index)
-        {
-            CommandArgs[index] = cmdArg;
         }
     }
 }

@@ -1,5 +1,14 @@
-spawn player chara_main_player 0 0 0 0
-spawn bot chara_archer 1 10 0 0
-spawn bot chara_archer 1 10 10 0
-spawn bot chara_archer 1 10 0 10
+function SpawnCharacters
+	loop 0 30 10
+		init_vector vect1
+		init_vector vect2
+		vector_set_x vect1 10
+		vector_set_z vect1 %current
+		vector_set_x vect2 -20
+		vector_set_z vect2 %current
+		spawn bot chara_archer 0 vect1
+		spawn bot chara_archer 0 vect2
+	end
+end
+call SpawnCharacters
 team 0 1 -1
