@@ -34,13 +34,17 @@ namespace AMOFGameEngine.States
 
         public override void update(double timeSinceLastFrame)
         {
+            if (world == null)
+            {
+                return;
+            }
             world.Update((float)timeSinceLastFrame);
-            m_FrameEvent.timeSinceLastFrame = (float)timeSinceLastFrame;
+            frameEvent.timeSinceLastFrame = (float)timeSinceLastFrame;
         }
 
         public override void exit()
         {
-            m_Data = world.GetCurrentMap().ModData;
+            modData = world.GetCurrentMap().ModData;
             world.Destroy();
         }
     }

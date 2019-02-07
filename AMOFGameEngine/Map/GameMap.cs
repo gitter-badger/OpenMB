@@ -103,16 +103,12 @@ namespace AMOFGameEngine.Map
             aimeshIndexData = new List<Mogre.Vector3>();
             aimeshVertexData = new List<Mogre.Vector3>();
             editor = new GameMapEditor(this);
-            if (GameManager.Instance.EDIT_MODE)
-            {
-                ScreenManager.Instance.ChangeScreen("InnerGameEditor");
-            }
 
-            GameManager.Instance.mMouse.MouseMoved += Mouse_MouseMoved;
-            GameManager.Instance.mMouse.MousePressed += Mouse_MousePressed;
-            GameManager.Instance.mMouse.MouseReleased += Mouse_MouseReleased;
-            GameManager.Instance.mKeyboard.KeyPressed += Keyboard_KeyPressed;
-            GameManager.Instance.mKeyboard.KeyReleased += Keyboard_KeyReleased;
+            GameManager.Instance.mouse.MouseMoved += Mouse_MouseMoved;
+            GameManager.Instance.mouse.MousePressed += Mouse_MousePressed;
+            GameManager.Instance.mouse.MouseReleased += Mouse_MouseReleased;
+            GameManager.Instance.keyboard.KeyPressed += Keyboard_KeyPressed;
+            GameManager.Instance.keyboard.KeyReleased += Keyboard_KeyReleased;
         }
 
         private bool Keyboard_KeyReleased(KeyEvent arg)
@@ -126,13 +122,13 @@ namespace AMOFGameEngine.Map
             if (GameManager.Instance.EDIT_MODE)
             {
                 if (ScreenManager.Instance.CheckScreenIsVisual("InnerGameEditor") &&
-                   (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_LSHIFT) &&
-                    GameManager.Instance.mKeyboard.IsKeyDown(arg.key)))
+                   (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_LSHIFT) &&
+                    GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_E)))
                 {
                     ScreenManager.Instance.ExitCurrentScreen();
                 }
-                else if((GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_LSHIFT) &&
-                    GameManager.Instance.mKeyboard.IsKeyDown(arg.key)))
+                else if(GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_LSHIFT) &&
+                    GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_E))
                 {
                     ScreenManager.Instance.ChangeScreen("InnerGameEditor", editor);
                 }
@@ -156,6 +152,12 @@ namespace AMOFGameEngine.Map
         private bool Mouse_MouseMoved(MouseEvent arg)
         {
             ScreenManager.Instance.InjectMouseMove(arg);
+            
+            Degree deCameraYaw = new Degree(arg.state.X.rel * -0.1f);
+            cam.Yaw(deCameraYaw);
+            Degree deCameraPitch = new Degree(arg.state.Y.rel * -0.1f);
+            cam.Pitch(deCameraPitch);
+
             if (GameManager.Instance.EDIT_MODE)
             {
 
@@ -165,11 +167,11 @@ namespace AMOFGameEngine.Map
 
         public void Destroy()
         {
-            GameManager.Instance.mMouse.MouseMoved -= Mouse_MouseMoved;
-            GameManager.Instance.mMouse.MousePressed -= Mouse_MousePressed;
-            GameManager.Instance.mMouse.MouseReleased -= Mouse_MouseReleased;
-            GameManager.Instance.mKeyboard.KeyPressed -= Keyboard_KeyPressed;
-            GameManager.Instance.mKeyboard.KeyReleased -= Keyboard_KeyReleased;
+            GameManager.Instance.mouse.MouseMoved -= Mouse_MouseMoved;
+            GameManager.Instance.mouse.MousePressed -= Mouse_MousePressed;
+            GameManager.Instance.mouse.MouseReleased -= Mouse_MouseReleased;
+            GameManager.Instance.keyboard.KeyPressed -= Keyboard_KeyPressed;
+            GameManager.Instance.keyboard.KeyReleased -= Keyboard_KeyReleased;
         }
 
         public void LoadAsync()
@@ -230,12 +232,8 @@ namespace AMOFGameEngine.Map
         public void Update(float timeSinceLastFrame)
         {
             updateAgents(timeSinceLastFrame);
-            moveOffset = new Mogre.Vector3(0, 0, 0);
-            getInput();
-            moveCamera();
-            PhysicsScene.FlushStream();
-            PhysicsScene.FetchResults(SimulationStatuses.AllFinished, true);
-            PhysicsScene.Simulate(timeSinceLastFrame);
+            updateMapCamera(timeSinceLastFrame);
+            updatePhysics(timeSinceLastFrame);
         }
         private void updateAgents(double timeSinceLastFrame)
         {
@@ -247,6 +245,27 @@ namespace AMOFGameEngine.Map
             {
                 agents[i].Update((float)timeSinceLastFrame);
             }
+        }
+
+        private void updateMapCamera(float timeSinceLastFrame)
+        {
+            moveOffset = new Mogre.Vector3(0, 0, 0);
+            if (GameManager.Instance.EDIT_MODE || playerAgent == null)
+            {
+                getInput();
+                moveCamera();
+            }
+            else
+            {
+                playerAgent.Update(timeSinceLastFrame);
+            }
+        }
+
+        private void updatePhysics(float timeSinceLastFrame)
+        {
+            PhysicsScene.FlushStream();
+            PhysicsScene.FetchResults(SimulationStatuses.AllFinished, true);
+            PhysicsScene.Simulate(timeSinceLastFrame);
         }
 
         public string GetName()
@@ -264,7 +283,7 @@ namespace AMOFGameEngine.Map
             return staticObjects;
         }
 
-        public void SpawnNewCharacter(string characterID, Mogre.Vector3 position, string teamId, bool isBot = true)
+        public void CreateCharacter(string characterID, Mogre.Vector3 position, string teamId, bool isBot = true)
         {
             var searchRet = ModData.CharacterInfos.Where(o => o.ID == characterID);
             if (searchRet.Count() > 0)
@@ -275,44 +294,32 @@ namespace AMOFGameEngine.Map
                 {
                     playerAgent = character;
                 }
-                character.OnCharacterUseWeaponAttack += Character_OnCharacterUseWeaponAttack;
-                character.OnCharacterDie += Character_OnCharacterDie;
                 agents.Add(character);
             }
         }
-
-        private void Character_OnCharacterUseWeaponAttack(int arg1, int arg2, double arg3)
-        {
-
-        }
-
-        private void Character_OnCharacterDie(int obj)
-        {
-
-        }
         private void getInput()
         {
-            if (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_A))
+            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_A))
                 moveOffset.x = -10;
 
-            if (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_D))
+            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_D))
                 moveOffset.x = 10;
 
-            if (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_W))
+            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_W))
                 moveOffset.z = -10;
 
-            if (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_S))
+            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_S))
                 moveOffset.z = 10;
 
-            if (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_Q))
+            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_Q))
                 moveOffset.y = -10;
 
-            if (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_E))
+            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_E))
                 moveOffset.y = 10;
         }
         private void moveCamera()
         {
-            if (GameManager.Instance.mKeyboard.IsKeyDown(KeyCode.KC_LSHIFT))
+            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_LSHIFT))
                 cam.MoveRelative(moveOffset);
             cam.MoveRelative(moveOffset / 10);
         }

@@ -9,7 +9,7 @@
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>AMOFGameEngine</RootNamespace>
-    <AssemblyName>AMGE</AssemblyName>
+    <AssemblyName>game</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
@@ -164,12 +164,22 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Game\Action\Activity.cs" />
+    <Compile Include="Configure\ConfigureSystem.cs" />
+    <Compile Include="Configure\IConfigFile.cs" />
+    <Compile Include="Configure\IConfigParser.cs" />
+    <Compile Include="Core\Argument.cs" />
+    <Compile Include="Core\Game.cs" />
     <Compile Include="Core\GameVersion.cs" />
     <Compile Include="Forms\Controller\frmConfigureController.cs" />
     <Compile Include="Forms\Model\AudioConfigure.cs" />
     <Compile Include="Forms\Model\Configure.cs" />
     <Compile Include="Forms\Model\GameConfigure.cs" />
     <Compile Include="Forms\Model\GraphicConfigure.cs" />
+    <Compile Include="Game\Action\Attack.cs" />
+    <Compile Include="Game\Action\Idle.cs" />
+    <Compile Include="Game\DecisionSystem.cs" />
+    <Compile Include="Game\EquipmentSystem.cs" />
     <Compile Include="Game\ItemAmmoFactory.cs" />
     <Compile Include="Game\ItemArmourFactory.cs" />
     <Compile Include="Game\ItemFactory.cs" />
@@ -189,15 +199,22 @@
     <Compile Include="Game\Item.cs" />
     <Compile Include="Game\Items\Pistol.cs" />
     <Compile Include="Game\Items\Rifle.cs" />
+    <Compile Include="Game\Items\Sword.cs" />
     <Compile Include="Game\ItemWeaponFactory.cs" />
     <Compile Include="Core\OutputManager.cs" />
+    <Compile Include="Game\IUpdate.cs" />
+    <Compile Include="Game\Action\Move.cs" />
+    <Compile Include="Game\Items\OneHandWeapon.cs" />
+    <Compile Include="Game\WeaponSystem.cs" />
     <Compile Include="LogMessage\EngineLog.cs" />
     <Compile Include="LogMessage\EngineLogManager.cs" />
+    <Compile Include="Map\AIMeshVertex.cs" />
     <Compile Include="Map\GameMapEditor.cs" />
     <Compile Include="Map\GameObjectQueryFlags.cs" />
+    <Compile Include="Game\MoveInfo.cs" />
     <Compile Include="Screen\GameEditorScreen.cs" />
     <Compile Include="Screen\Screen.cs" />
-    <Compile Include="Utilities\AIMesh.cs" />
+    <Compile Include="Map\AIMesh.cs" />
     <Compile Include="Map\GameMap.cs" />
     <Compile Include="Map\GameMapManager.cs" />
     <Compile Include="Map\GameMapTrigger.cs" />
@@ -227,6 +244,7 @@
     <Compile Include="Screen\IScreen.cs" />
     <Compile Include="Screen\ScreenManager.cs" />
     <Compile Include="Script\Command\AddLightScriptCommand.cs" />
+    <Compile Include="Script\Command\AgentEquipItemScriptCommand.cs" />
     <Compile Include="Script\Command\CallScriptCommand.cs" />
     <Compile Include="Script\Command\AssignScriptCommand.cs" />
     <Compile Include="Script\Command\EndScriptCommand.cs" />
@@ -267,6 +285,7 @@
     </Compile>
     <Compile Include="Localization\LocateSystem.cs" />
     <Compile Include="States\Credit.cs" />
+    <Compile Include="States\Loading.cs" />
     <Compile Include="States\SinglePlayer.cs" />
     <Compile Include="States\Multiplayer.cs" />
     <Compile Include="Core\GameManager.cs" />
@@ -276,7 +295,7 @@
     <Compile Include="States\AppState.cs" />
     <Compile Include="States\AppStateManager.cs" />
     <Compile Include="States\ModChooser.cs" />
-    <Compile Include="Application\GameApp.cs" />
+    <Compile Include="Core\GameApp.cs" />
     <Compile Include="States\MainMenu.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -285,10 +304,11 @@
     <Compile Include="Trigger\ITrigger.cs" />
     <Compile Include="Trigger\TriggerManager.cs" />
     <Compile Include="Utilities\ActorNode.cs" />
-    <Compile Include="Utilities\AIMeshIndexData.cs" />
+    <Compile Include="Map\AIMeshEdge.cs" />
+    <Compile Include="Map\AIMeshIndexData.cs" />
     <Compile Include="Utilities\CollisionTools.cs" />
-    <Compile Include="Utilities\ConfigFile.cs" />
-    <Compile Include="Utilities\ConfigFileParser.cs" />
+    <Compile Include="Configure\IniConfigFile.cs" />
+    <Compile Include="Configure\IniConfigFileParser.cs" />
     <Compile Include="Utilities\Helper.cs" />
     <Compile Include="Utilities\MeshToNavmesh.cs" />
     <Compile Include="Utilities\PhysxExpansion.cs" />

@@ -8,12 +8,16 @@ using MOIS;
 using AMOFGameEngine.Sound;
 using Mogre.PhysX;
 using org.critterai.nav;
+using AMOFGameEngine.Game.Action;
 
 namespace AMOFGameEngine.Game
 {
     public enum CharacterState
     {
+        Idle,
         Seek,
+        Follow,
+        Wander,
         Attack,
         Flee
     }
@@ -24,11 +28,12 @@ namespace AMOFGameEngine.Game
     {
         //Unique Id
         private int id;
-        private CharacterState currentState;
-        private Character currentEnemy;
-        private Item currentWieldWeapon;
-        public event Action<int, int, double> OnCharacterUseWeaponAttack;
-        public event Action<int> OnCharacterDie;
+        private DecisionSystem brain;
+        private WeaponSystem weaponSystem;
+        private EquipmentSystem equipmentSystem;
+        private Activity currentActivity;
+
+        private Dictionary<string, CharacterController.AnimID> animations;
 
         public int Id
         {
@@ -51,12 +56,6 @@ namespace AMOFGameEngine.Game
         //Controller
         private CharacterController controller;
 
-        public CharacterController Controller
-        {
-            get { return controller; }
-            set { controller = value; }
-        }
-
         //Hitpoint
         private int hitpoint;
 
@@ -64,33 +63,6 @@ namespace AMOFGameEngine.Game
         {
             get { return hitpoint; }
             set { hitpoint = value; }
-        }
-
-        //Weapons
-        private Item[] weapons;
-
-        public Item[] Weapons
-        {
-            get { return weapons; }
-            set { weapons = value; }
-        }
-
-        //Clothes
-        private Item[] clothes;
-
-        public Item[] Clothes
-        {
-            get { return clothes; }
-            set { clothes = value; }
-        }
-
-        //Backpack
-        private Inventory backpack;
-
-        public Inventory Backpack
-        {
-            get { return backpack; }
-            set { backpack = value; }
         }
 
         public string TeamId
@@ -101,8 +73,40 @@ namespace AMOFGameEngine.Game
             }
         }
 
+        public Mogre.Vector3 Position
+        {
+            get
+            {
+                return controller.Position;
+            }
+        }
+
+        public bool IsDead
+        {
+            get
+            {
+                return Hitpoint <= 0;
+            }
+        }
+
+        public WeaponSystem WeaponSystem
+        {
+            get
+            {
+                return weaponSystem;
+            }
+        }
+
+        public EquipmentSystem EquipmentSystem
+        {
+            get
+            {
+                return equipmentSystem;
+            }
+        }
+
         //Environment
-        private GameWorld mWorld;
+        private GameWorld world;
 
         /// <summary>
         /// Constructor
@@ -124,27 +128,36 @@ namespace AMOFGameEngine.Game
                          Mogre.Vector3 initPosition,
                          bool controlled)
         {
-            mWorld = world;
+            this.world = world;
             Id = id;
             Name = string.Empty;
             Hitpoint = 100;
-            Weapons = new Item[5];
-            Clothes = new Item[5];
-            Backpack = new Inventory(21, this);
             controller = new CharacterController(cam,world.GetCurrentMap().NavmeshQuery,world.GetCurrentMap().PhysicsScene, name + id.ToString(), meshName, controlled);//初始化控制器
             controller.Position = initPosition;
-            currentEnemy = null;
-            currentWieldWeapon = new Fist(cam, world.GetCurrentMap().PhysicsScene, -1, id);
-            currentWieldWeapon.OnWeaponAttack += CurrentWieldWeapon_OnWeaponAttack;
-            currentState = CharacterState.Seek;
-        }
 
-        private void CurrentWieldWeapon_OnWeaponAttack(int arg1, int arg2)
-        {
-            if (OnCharacterUseWeaponAttack != null)
-            {
-                OnCharacterUseWeaponAttack(arg1, arg2, currentWieldWeapon.Damage);
-            }
+            brain = new DecisionSystem(this);
+            weaponSystem = new WeaponSystem(this, new Fist(cam, world.GetCurrentMap().PhysicsScene, -1, id));
+            equipmentSystem = new EquipmentSystem(this);
+
+            currentActivity = new Idle();
+            moveInfo = new MoveInfo(CharacterController.RUN_SPEED);
+
+            /* TODO: Use Xml file to define the animation dynamically */
+            animations = new Dictionary<string, CharacterController.AnimID>();
+            animations.Add("ANIM_DANCE", CharacterController.AnimID.ANIM_DANCE);
+            animations.Add("ANIM_DRAW_SWORDS", CharacterController.AnimID.ANIM_DRAW_SWORDS);
+            animations.Add("ANIM_HANDS_CLOSED", CharacterController.AnimID.ANIM_HANDS_CLOSED);
+            animations.Add("ANIM_HANDS_RELAXED", CharacterController.AnimID.ANIM_HANDS_RELAXED);
+            animations.Add("ANIM_IDLE_BASE", CharacterController.AnimID.ANIM_IDLE_BASE);
+            animations.Add("ANIM_IDLE_TOP", CharacterController.AnimID.ANIM_IDLE_TOP);
+            animations.Add("ANIM_JUMP_END", CharacterController.AnimID.ANIM_JUMP_END);
+            animations.Add("ANIM_JUMP_LOOP", CharacterController.AnimID.ANIM_JUMP_LOOP);
+            animations.Add("ANIM_JUMP_START", CharacterController.AnimID.ANIM_JUMP_START);
+            animations.Add("ANIM_NONE", CharacterController.AnimID.ANIM_NONE);
+            animations.Add("ANIM_RUN_BASE", CharacterController.AnimID.ANIM_RUN_BASE);
+            animations.Add("ANIM_RUN_TOP", CharacterController.AnimID.ANIM_RUN_TOP);
+            animations.Add("ANIM_SLICE_HORIZONTAL", CharacterController.AnimID.ANIM_SLICE_HORIZONTAL);
+            animations.Add("ANIM_SLICE_VERTICAL", CharacterController.AnimID.ANIM_SLICE_VERTICAL);
         }
 
         public bool GetControlled()
@@ -152,76 +165,11 @@ namespace AMOFGameEngine.Game
             return controller.GetControlled();
         }
 
-        public void WalkTo(Mogre.Vector3 position)
-        {
-            controller.WalkTo(position);
-        }
-
-        /// <summary>
-        /// Check the environment, find the enemy and destroy it!
-        /// </summary>
-        private void CheckEnvironment()
-        {
-            //Find the closest enemy
-            Mogre.Vector3 targetPosition = new Mogre.Vector3();
-            float distance = -1;
-            if (currentEnemy == null)
-            {
-                int agentNum = mWorld.GetAllCharacters().Count;
-                float lastDistance = -1;
-                for (int i = 0; i < agentNum; i++)
-                {
-                    Character chara = mWorld.GetCurrentMap().GetAgents()[i];
-                    distance = (Controller.Position - chara.Controller.Position).SquaredLength;
-                    if (lastDistance == -1)
-                    {
-                        lastDistance = distance;
-                    }
-                    else
-                    {
-                        if (lastDistance > distance)
-                        {
-                            lastDistance = distance;
-                            targetPosition = chara.Controller.Position;
-                            currentEnemy = chara;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                //Choose a weapon and prepare to attack
-                if (currentWieldWeapon == null)
-                {
-                    if (weapons == null || weapons.Length == 0)
-                    {
-
-                    }
-                    else
-                    {
-                        currentWieldWeapon = weapons[0];
-                    }
-                }
-                distance = (Controller.Position - currentEnemy.Controller.Position).Length;
-                //Keep walking util enemy engaged
-                while (distance > currentWieldWeapon.Range)
-                {
-                    WalkTo(targetPosition);
-                }
-                //Attack the enemy until it die!
-                while (currentEnemy.Hitpoint > 0)
-                {
-                    currentWieldWeapon.Attack(currentEnemy.Id);
-                    controller.Attack();
-                }
-            }
-        }
-
         public void WearHat(Item item)
         {
             if (item != null && item.ItemType == ItemType.IT_HEAD_ARMOUR)
             {
-                Clothes[0] = item;
+                equipmentSystem.EquipClothes(item, 0);
                 controller.AttachEntityToChara("head", item.ItemEnt);
             }
         }
@@ -230,14 +178,9 @@ namespace AMOFGameEngine.Game
         {
             if (item != null && item.ItemType == ItemType.IT_BODY_ARMOUR)
             {
-                Clothes[1] = item;
+                equipmentSystem.EquipClothes(item, 1);
                 controller.AttachEntityToChara("back", item.ItemEnt);
             }
-        }
-
-        public void AddItemToBackpack(Item item)
-        {
-            Backpack.AddItemToInventory(item);
         }
 
         /// <summary>
@@ -248,7 +191,7 @@ namespace AMOFGameEngine.Game
         {
             List<Character> enemies = new List<Character>();
             List<string> enemyTeamsWithMe = new List<string>();
-            var allEnemyTeams = mWorld.GetTeamRelationshipByCondition(o => o.Item3 == -1);
+            var allEnemyTeams = world.GetTeamRelationshipByCondition(o => o.Item3 == -1);
             foreach(var enemyTeam in allEnemyTeams)
             {
                 if(enemyTeam.Item1 == teamId)
@@ -268,7 +211,7 @@ namespace AMOFGameEngine.Game
             }
             foreach(var enemyTeamWithMe in enemyTeamsWithMe)
             {
-                enemies.AddRange(mWorld.GetCharactersByCondition(o => o.TeamId == enemyTeamWithMe));
+                enemies.AddRange(world.GetCharactersByCondition(o => o.TeamId == enemyTeamWithMe));
             }
             return enemies;
         }
@@ -284,61 +227,71 @@ namespace AMOFGameEngine.Game
 
         public override void Update(float timeSinceLastFrame)
         {
-            //FSM
-            switch(currentState)
-            {
-                case CharacterState.Seek:
-                    List<Character> enemies = FindEnemies();
-                    if (enemies.Count > 0)
-                    {
-                        currentEnemy = enemies[0];
-                        currentState = CharacterState.Attack;
-                    }
-                    break;
-                case CharacterState.Attack:
-                    if (currentEnemy != null)
-                    {
-                        WalkTo(currentEnemy.controller.Position);
-                        if((currentEnemy.controller.Position-controller.Position).Length <= currentWieldWeapon.Range)//Enemy in range
-                        {
-                            Attack();
-                        }
-                        else
-                        {
-                            Run();
-                        }
-                    }
-                    else
-                    {
-                        currentState = CharacterState.Seek;
-                    }
-                    break;
-                case CharacterState.Flee:
-                    break;
-            }
+            brain.Update(timeSinceLastFrame);
             controller.update(timeSinceLastFrame);
-            if (Hitpoint < 0)
-            {
-                //R.I.P
-                if (OnCharacterDie != null)
-                {
-                    OnCharacterDie(id);
-                }
-            }
-            else
-            {
-                //CheckEnvironment();
-            }
+            weaponSystem.Update(timeSinceLastFrame);
+            equipmentSystem.Update(timeSinceLastFrame);
+            currentActivity.Update(timeSinceLastFrame);
         }
 
-        private void Run()
+        public void RotateBody(Quaternion quat)
         {
-            controller.Run();
+            controller.RotateBody(quat);
         }
 
-        private void Attack()
+        public void TranslateBody(Mogre.Vector3 vector3)
         {
-            controller.Attack();
+            controller.TranslateBody(vector3);
+        }
+
+        public Mogre.Quaternion GetBodyOrientation()
+        {
+            return controller.GetBodyOrientation();
+        }
+
+        public void YawBody(Degree degree)
+        {
+            controller.YawBody(degree);
+        }
+
+        public void SetBodyPos(float x, float y, float z)
+        {
+            controller.SetBodyPos(x, y, z);
+        }
+
+        public void SetTopAnimation(string animName, bool v)
+        {
+            if (!animations.ContainsKey(animName))
+            {
+                return;
+            }
+            controller.SetTopAnimation(animations[animName]);
+        }
+
+        public void SetBaseAnimation(string animName, bool v)
+        {
+            if (!animations.ContainsKey(animName))
+            {
+                return;
+            }
+            controller.SetBaseAnimation(animations[animName]);
+        }
+
+        public void SetAnimation(string topAnimName, string baseAnimName, bool v)
+        {
+            SetTopAnimation(topAnimName, v);
+            SetBaseAnimation(baseAnimName, v);
+        }
+
+        public void QueueActivity(Activity newActivity)
+        {
+            currentActivity.Enqueue(newActivity);
+            currentActivity = currentActivity.NextActivity;
+        }
+
+        public void RestoreLastActivity()
+        {
+            currentActivity = currentActivity.ParentActivity;
         }
     }
 }

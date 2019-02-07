@@ -6,26 +6,27 @@ using AMOFGameEngine.Localization;
 using AMOFGameEngine.Utilities;
 using Mogre;
 using AMOFGameEngine.LogMessage;
+using AMOFGameEngine.Mods;
 
 namespace AMOFGameEngine
 {
-    enum RunState
+    public enum RunState
     {
         Stopped,
         Running,
         Error
     }
 
-    class GameApp
+    public class GameApp
     {
         private RunState state;
         private Dictionary<string, string> gameOptions;
-        private AMOFGameEngine.Utilities.ConfigFile conf;
-        public GameApp(Dictionary<string,string> gameOptions, AMOFGameEngine.Utilities.ConfigFile conf)
+        private string mod;
+        public GameApp(Dictionary<string,string> gameOptions = null, string mod = null)
         {
             this.state = RunState.Stopped;
             this.gameOptions = gameOptions;
-            this.conf = conf;
+            this.mod = mod;
             AppStateManager.Instance.OnAppStateManagerStarted += new Action(OnAppStateManagerStarted);
         }
 
@@ -36,15 +37,10 @@ namespace AMOFGameEngine
 
         public RunState Run()
         {
-            if (!GameManager.Instance.InitRender("AMGE", conf))
+            if (!GameManager.Instance.Init("AMGE", gameOptions))
             {
-                EngineLogManager.Instance.LogMessage("failed to Initialize the render system!", LogType.Error);
-                state = RunState.Error;
-            }
-            if (!GameManager.Instance.InitSubSystem(gameOptions))
-            {
-                EngineLogManager.Instance.LogMessage("failed to Initialize the game system!", LogType.Error);
-                state = RunState.Error;
+                EngineLogManager.Instance.LogMessage("Failed to initialize the game engine!", LogType.Error);
+                return RunState.Error;
             }
 
             GC.Collect();
@@ -55,8 +51,18 @@ namespace AMOFGameEngine
             SinglePlayer.create<SinglePlayer>("SinglePlayer");
             Multiplayer.create<Multiplayer>("Multiplayer");
             Credit.create<Credit>("Credit");
+            Loading.create<Loading>("Loading");
 
-            AppStateManager.Instance.start(AppStateManager.Instance.findByName("ModChooser"));
+            var installedMod = ModManager.Instance.GetInstalledMods();
+            if (!string.IsNullOrEmpty(mod) && installedMod.ContainsKey(mod))
+            {
+                GameManager.Instance.loadingData = new LoadingData(LoadingType.LOADING_MOD, "Loading Mod...Please wait", mod, "MainMenu");
+                AppStateManager.Instance.start(AppStateManager.Instance.findByName("Loading"));
+            }
+            else
+            {
+                AppStateManager.Instance.start(AppStateManager.Instance.findByName("ModChooser"));
+            }
 
             EngineLogManager.Instance.Dispose();
 

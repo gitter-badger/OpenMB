@@ -17,6 +17,7 @@ namespace AMOFGameEngine.Forms
 {
     public partial class frmConfigure : Form
     {
+        private string mod;
         private frmConfigureController controller;
         public frmConfigureController Controller
         {
@@ -39,21 +40,21 @@ namespace AMOFGameEngine.Forms
                 chkEnableEditMode.DataBindings.Add("checked", controller.GameConfig, "IsEnableEditMode");
             }
         }
-        public frmConfigure()
+        public frmConfigure(string mod = null)
         {
             InitializeComponent();
+            this.mod = mod;
         }
         private void ConfigFrm_Load(object sender, EventArgs e)
         {
             controller.Init();
+            LocateSystem.Singleton.InitLocateSystem(controller.CurrentLoacte);// Init Locate System
+            controller.InitLocates();
 
             if (controller.CurrentLoacte != LOCATE.invalid)
             {
                 cmbLanguageSelect.SelectedIndex = LocateSystem.Singleton.CovertLocateInfoToIndex(controller.CurrentLoacte);
-
-                LocateSystem.Singleton.InitLocateSystem(controller.CurrentLoacte);// Init Locate System
-                LocateSystem.Singleton.IsInit = true;
-            
+                
                 tbRenderOpt.TabPages[0].Text = LocateSystem.Singleton.GetLocalizedString(LocateFileType.GameUI, "ui_graphic");
                 tbRenderOpt.TabPages[1].Text = LocateSystem.Singleton.GetLocalizedString(LocateFileType.GameUI, "ui_audio");
                 tbRenderOpt.TabPages[2].Text = LocateSystem.Singleton.GetLocalizedString(LocateFileType.GameUI, "ui_game");
@@ -95,14 +96,14 @@ namespace AMOFGameEngine.Forms
 
         private void btnCancel_Click(object sender, EventArgs e)
         {
-            Application.Exit();
+            Close();
         }
 
         private void btnOK_Click(object sender, EventArgs e)
         {
-            Close();
-            Tuple<Dictionary<string, string>, AMOFGameEngine.Utilities.ConfigFile> confTuple = controller.SaveConfigure();
-            GameApp app = new GameApp(confTuple.Item1, confTuple.Item2);
+            Hide();
+            Dictionary<string, string> gameOptions = controller.SaveConfigure();
+            GameApp app = new GameApp(gameOptions, mod);
             app.Run();
         }
         private void cmbValueChange_SelectedIndexChanged(object sender, EventArgs e)
@@ -113,6 +114,11 @@ namespace AMOFGameEngine.Forms
                                                       lstConfig.SelectedItem.ToString().Split(':')[0],
                                                       cmbValueChange.SelectedItem.ToString());
             }
+        }
+
+        private void frmConfigure_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            Close();
         }
     }
 }
