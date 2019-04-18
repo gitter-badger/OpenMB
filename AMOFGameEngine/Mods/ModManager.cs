@@ -114,6 +114,11 @@ namespace AMOFGameEngine.Mods
                 currentMod.SideInfos = sideDfn.Sides;
                 worker.ReportProgress(80);
 
+                loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Skin);
+                XML.ModSkinDfnXML skinDfn;
+                loader.Load<XML.ModSkinDfnXML>(out skinDfn);
+                currentMod.SkinInfos = skinDfn.CharacterSkinList;
+
                 loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Music);
                 XML.ModTracksDfnXML trackDfn;
                 loader.Load<XML.ModTracksDfnXML>(out trackDfn);

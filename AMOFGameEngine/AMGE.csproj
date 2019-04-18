@@ -164,6 +164,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Game\CameraHandler.cs" />
     <Compile Include="Game\Action\Activity.cs" />
     <Compile Include="Configure\ConfigureSystem.cs" />
     <Compile Include="Configure\IConfigFile.cs" />
@@ -177,9 +178,13 @@
     <Compile Include="Forms\Model\GameConfigure.cs" />
     <Compile Include="Forms\Model\GraphicConfigure.cs" />
     <Compile Include="Game\Action\Attack.cs" />
+    <Compile Include="Game\Action\Follow.cs" />
     <Compile Include="Game\Action\Idle.cs" />
+    <Compile Include="Game\CharacterAnimation.cs" />
+    <Compile Include="Game\CharacterMessage.cs" />
     <Compile Include="Game\DecisionSystem.cs" />
     <Compile Include="Game\EquipmentSystem.cs" />
+    <Compile Include="Game\HealthInfo.cs" />
     <Compile Include="Game\ItemAmmoFactory.cs" />
     <Compile Include="Game\ItemArmourFactory.cs" />
     <Compile Include="Game\ItemFactory.cs" />
@@ -199,25 +204,25 @@
     <Compile Include="Game\Item.cs" />
     <Compile Include="Game\Items\Pistol.cs" />
     <Compile Include="Game\Items\Rifle.cs" />
-    <Compile Include="Game\Items\Sword.cs" />
     <Compile Include="Game\ItemWeaponFactory.cs" />
     <Compile Include="Core\OutputManager.cs" />
     <Compile Include="Game\IUpdate.cs" />
     <Compile Include="Game\Action\Move.cs" />
     <Compile Include="Game\Items\OneHandWeapon.cs" />
+    <Compile Include="Game\ScenePlane.cs" />
+    <Compile Include="Game\SceneProp.cs" />
     <Compile Include="Game\WeaponSystem.cs" />
     <Compile Include="LogMessage\EngineLog.cs" />
     <Compile Include="LogMessage\EngineLogManager.cs" />
     <Compile Include="Map\AIMeshVertex.cs" />
     <Compile Include="Map\GameMapEditor.cs" />
-    <Compile Include="Map\GameObjectQueryFlags.cs" />
     <Compile Include="Game\MoveInfo.cs" />
+    <Compile Include="Mods\XML\ModSkinDfnXml.cs" />
     <Compile Include="Screen\GameEditorScreen.cs" />
     <Compile Include="Screen\Screen.cs" />
     <Compile Include="Map\AIMesh.cs" />
     <Compile Include="Map\GameMap.cs" />
     <Compile Include="Map\GameMapManager.cs" />
-    <Compile Include="Map\GameMapTrigger.cs" />
     <Compile Include="Map\IMap.cs" />
     <Compile Include="Mods\XML\ModSoundsDfn.cs" />
     <Compile Include="Network\NetworkManager.cs" />
@@ -247,6 +252,7 @@
     <Compile Include="Script\Command\AgentEquipItemScriptCommand.cs" />
     <Compile Include="Script\Command\CallScriptCommand.cs" />
     <Compile Include="Script\Command\AssignScriptCommand.cs" />
+    <Compile Include="Script\Command\ChangeHitpointScriptCommand.cs" />
     <Compile Include="Script\Command\EndScriptCommand.cs" />
     <Compile Include="Script\Command\FunctionScriptCommand.cs" />
     <Compile Include="Script\Command\InitVectorScriptCommand.cs" />
@@ -255,6 +261,8 @@
     <Compile Include="Script\Command\RemoveLightScriptCommand.cs" />
     <Compile Include="Script\Command\RootScriptCommand.cs" />
     <Compile Include="Script\Command\ScriptCommand.cs" />
+    <Compile Include="Script\Command\SpawnPlaneScriptCommand.cs" />
+    <Compile Include="Script\Command\SpawnScenePropScriptCommand.cs" />
     <Compile Include="Script\Command\StoreScriptCommand.cs" />
     <Compile Include="Script\Command\TriggerConditionScriptCommand.cs" />
     <Compile Include="Script\Command\TriggerExecuteSrciptCommand.cs" />
@@ -274,6 +282,7 @@
     <Compile Include="Script\ScriptLoader.cs" />
     <Compile Include="Script\Command\SpawnScriptCommand.cs" />
     <Compile Include="Script\Command\TeamScriptCommand.cs" />
+    <Compile Include="Script\ScriptTrigger.cs" />
     <Compile Include="Script\ScriptValueRegister.cs" />
     <Compile Include="Sound\GameSound.cs" />
     <Compile Include="Sound\SoundManager.cs" />
@@ -299,9 +308,6 @@
     <Compile Include="States\MainMenu.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Trigger\DummyTrigger.cs" />
-    <Compile Include="Trigger\GameTrigger.cs" />
-    <Compile Include="Trigger\ITrigger.cs" />
     <Compile Include="Trigger\TriggerManager.cs" />
     <Compile Include="Utilities\ActorNode.cs" />
     <Compile Include="Map\AIMeshEdge.cs" />

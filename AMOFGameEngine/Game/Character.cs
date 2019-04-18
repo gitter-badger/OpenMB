@@ -9,6 +9,7 @@ using AMOFGameEngine.Sound;
 using Mogre.PhysX;
 using org.critterai.nav;
 using AMOFGameEngine.Game.Action;
+using AMOFGameEngine.Mods.XML;
 
 namespace AMOFGameEngine.Game
 {
@@ -26,14 +27,17 @@ namespace AMOFGameEngine.Game
     /// </summary>
     public class Character : GameObject
     {
-        //Unique Id
-        private int id;
+        private string displayName;
+        private string meshName;
         private DecisionSystem brain;
         private WeaponSystem weaponSystem;
         private EquipmentSystem equipmentSystem;
+        private List<CharacterMessage> messageQueue;
         private Activity currentActivity;
-
-        private Dictionary<string, CharacterController.AnimID> animations;
+        private ModCharacterSkinDfnXML skin;
+        private bool isBot;
+        private string teamId;
+        private CharacterController controller;
 
         public int Id
         {
@@ -41,28 +45,17 @@ namespace AMOFGameEngine.Game
             set { id = value; }
         }
 
-        //Name
-        private string name;
-
         public string Name
         {
-            get { return name; }
-            set { name = value; }
+            get { return displayName; }
         }
 
-        //Team, usually used to identity whether is enemy
-        private string teamId;
-
-        //Controller
-        private CharacterController controller;
-
-        //Hitpoint
-        private int hitpoint;
-
-        public int Hitpoint
+        public string MeshName
         {
-            get { return hitpoint; }
-            set { hitpoint = value; }
+            get
+            {
+                return meshName;
+            }
         }
 
         public string TeamId
@@ -73,19 +66,11 @@ namespace AMOFGameEngine.Game
             }
         }
 
-        public Mogre.Vector3 Position
-        {
-            get
-            {
-                return controller.Position;
-            }
-        }
-
         public bool IsDead
         {
             get
             {
-                return Hitpoint <= 0;
+                return Health.HP <= 0;
             }
         }
 
@@ -105,8 +90,21 @@ namespace AMOFGameEngine.Game
             }
         }
 
-        //Environment
-        private GameWorld world;
+        public Activity CurrentActivity
+        {
+            get
+            {
+                return currentActivity;
+            }
+        }
+
+        public SceneNode SceneNode
+        {
+            get
+            {
+                return controller.BodyNode;
+            }
+        }
 
         /// <summary>
         /// Constructor
@@ -118,46 +116,44 @@ namespace AMOFGameEngine.Game
         /// <param name="name">Name</param>
         /// <param name="meshName">Mesh Name</param>
         /// <param name="initPosition">Init Position</param>
-        /// <param name="controlled">Is Bot or not</param>
-        public Character(GameWorld world, 
-                         Camera cam, 
-                         int id,
-                         string teamId,
-                         string name,
-                         string meshName,
-                         Mogre.Vector3 initPosition,
-                         bool controlled)
+        /// <param name="isBot">Is Bot or not</param>
+        public Character(
+            GameWorld world,
+            int id,
+            string teamId,
+            string displayName,
+            string meshName,
+            Mogre.Vector3 initPosition,
+            ModCharacterSkinDfnXML skin,
+            bool isBot) : base(id, world)
         {
             this.world = world;
+            this.displayName = displayName;
+            this.meshName = meshName;
+            this.skin = skin;
+            this.isBot = isBot;
             Id = id;
-            Name = string.Empty;
-            Hitpoint = 100;
-            controller = new CharacterController(cam,world.GetCurrentMap().NavmeshQuery,world.GetCurrentMap().PhysicsScene, name + id.ToString(), meshName, controlled);//初始化控制器
-            controller.Position = initPosition;
-
+            position = initPosition;
             brain = new DecisionSystem(this);
-            weaponSystem = new WeaponSystem(this, new Fist(cam, world.GetCurrentMap().PhysicsScene, -1, id));
+            weaponSystem = new WeaponSystem(this, new Fist(world, -1, id));
             equipmentSystem = new EquipmentSystem(this);
 
             currentActivity = new Idle();
             moveInfo = new MoveInfo(CharacterController.RUN_SPEED);
+            health = new HealthInfo(this);
+            messageQueue = new List<CharacterMessage>();
 
-            /* TODO: Use Xml file to define the animation dynamically */
-            animations = new Dictionary<string, CharacterController.AnimID>();
-            animations.Add("ANIM_DANCE", CharacterController.AnimID.ANIM_DANCE);
-            animations.Add("ANIM_DRAW_SWORDS", CharacterController.AnimID.ANIM_DRAW_SWORDS);
-            animations.Add("ANIM_HANDS_CLOSED", CharacterController.AnimID.ANIM_HANDS_CLOSED);
-            animations.Add("ANIM_HANDS_RELAXED", CharacterController.AnimID.ANIM_HANDS_RELAXED);
-            animations.Add("ANIM_IDLE_BASE", CharacterController.AnimID.ANIM_IDLE_BASE);
-            animations.Add("ANIM_IDLE_TOP", CharacterController.AnimID.ANIM_IDLE_TOP);
-            animations.Add("ANIM_JUMP_END", CharacterController.AnimID.ANIM_JUMP_END);
-            animations.Add("ANIM_JUMP_LOOP", CharacterController.AnimID.ANIM_JUMP_LOOP);
-            animations.Add("ANIM_JUMP_START", CharacterController.AnimID.ANIM_JUMP_START);
-            animations.Add("ANIM_NONE", CharacterController.AnimID.ANIM_NONE);
-            animations.Add("ANIM_RUN_BASE", CharacterController.AnimID.ANIM_RUN_BASE);
-            animations.Add("ANIM_RUN_TOP", CharacterController.AnimID.ANIM_RUN_TOP);
-            animations.Add("ANIM_SLICE_HORIZONTAL", CharacterController.AnimID.ANIM_SLICE_HORIZONTAL);
-            animations.Add("ANIM_SLICE_VERTICAL", CharacterController.AnimID.ANIM_SLICE_VERTICAL);
+            create();
+        }
+
+        public void AttchItem(Item target)
+        {
+            controller.AttachItem(ItemUseAttachOption.IAO_SPIN, target);
+        }
+
+        protected override void create()
+        {
+            controller = new CharacterController(world.Camera, world.Map.NavmeshQuery, world.Map.PhysicsScene, meshName, skin, isBot, position);
         }
 
         public bool GetControlled()
@@ -227,11 +223,13 @@ namespace AMOFGameEngine.Game
 
         public override void Update(float timeSinceLastFrame)
         {
+            position = controller.Position;
             brain.Update(timeSinceLastFrame);
             controller.update(timeSinceLastFrame);
             weaponSystem.Update(timeSinceLastFrame);
             equipmentSystem.Update(timeSinceLastFrame);
-            currentActivity.Update(timeSinceLastFrame);
+            health.Update(timeSinceLastFrame);
+            UpdateActivity(timeSinceLastFrame);
         }
 
         public void RotateBody(Quaternion quat)
@@ -261,20 +259,22 @@ namespace AMOFGameEngine.Game
 
         public void SetTopAnimation(string animName, bool v)
         {
-            if (!animations.ContainsKey(animName))
+            CharacterAnimation animation = controller.GetAnimationByName(animName);
+            if (animation==null)
             {
                 return;
             }
-            controller.SetTopAnimation(animations[animName]);
+            controller.SetTopAnimation(animation);
         }
 
         public void SetBaseAnimation(string animName, bool v)
         {
-            if (!animations.ContainsKey(animName))
+            CharacterAnimation animation = controller.GetAnimationByName(animName);
+            if (animation == null)
             {
                 return;
             }
-            controller.SetBaseAnimation(animations[animName]);
+            controller.SetBaseAnimation(animation, v);
         }
 
         public void SetAnimation(string topAnimName, string baseAnimName, bool v)
@@ -289,9 +289,128 @@ namespace AMOFGameEngine.Game
             currentActivity = currentActivity.NextActivity;
         }
 
+        public void UpdateActivity(float deltaTime)
+        {
+            Activity tempActivity = currentActivity;
+            while (tempActivity != null)
+            {
+                tempActivity.Update(deltaTime);
+                var nextActivity = tempActivity.NextActivity;
+                if (tempActivity.State == ActionState.Cancel || tempActivity.State == ActionState.Done)
+                {
+                    tempActivity.Dequeue();
+                }
+                tempActivity = nextActivity;
+            }
+        }
+
+        public void EquipWeapon(Item item)
+        {
+            if (equipmentSystem.EquipNewWeapon(item))
+            {
+                controller.AttachItem(item.ItemAttachOption, item);
+            }
+        }
+
+        public void HandleMessage()
+        {
+            var urgentMessages = messageQueue.Where(o => o.Level == MessageLevel.heigh || o.Level == MessageLevel.veryhigh);
+            for (int i = 0; i < urgentMessages.Count(); i++)
+            {
+                var urgentMessage = urgentMessages.ElementAt(i);
+                switch(urgentMessage.Type)
+                {
+                    case MessageType.enemy_spotted:
+                        brain.ReGroupAndAttackWhenReady();
+                        break;
+                    case MessageType.need_backup:
+                        brain.TryReforceAllies();
+                        break;
+                }
+            }
+        }
+
         public void RestoreLastActivity()
         {
             currentActivity = currentActivity.ParentActivity;
+        }
+
+        public bool CheckActivity<T>() where T : Activity
+        {
+            return currentActivity.GetType() is T;
+        }
+
+        public void ReceiveMessage(CharacterMessage message)
+        {
+            messageQueue.Add(message);
+        }
+
+        public void SendMessage(MessageLevel level, MessageType type, int agentId)
+        {
+            var agent = world.Map.GetAgentById(agentId);
+            if (agent != null)
+            {
+                agent.ReceiveMessage(new CharacterMessage(level, type));
+            }
+        }
+
+        public void InjectMouseMove(MouseEvent evt)
+        {
+            controller.injectMouseMove(evt);
+        }
+
+        public void InjectKeyPressed(KeyEvent arg)
+        {
+            if (equipmentSystem.RideDrive != null)
+            {
+                equipmentSystem.RideDrive.injectKeyDown(arg);
+            }
+            else
+            {
+                controller.injectKeyDown(arg);
+            }
+        }
+
+        public void InjectKeyUp(KeyEvent evt)
+        {
+            if (equipmentSystem.RideDrive != null)
+            {
+                equipmentSystem.RideDrive.injectKeyUp(evt);
+            }
+            else
+            {
+                controller.injectKeyUp(evt);
+            }
+        }
+
+        public string GetIdleTopAnim()
+        {
+            return controller.GetAnimationNameByType(CharacterAnimationType.CAT_IDLE_TOP);
+        }
+
+        public string GetIdleBaseAnim()
+        {
+            return controller.GetAnimationNameByType(CharacterAnimationType.CAT_IDLE_BASE);
+        }
+
+        public void AttachCamera(Camera camera)
+        {
+            controller.setupCamera(camera);
+        }
+
+        public Camera DetachCamera()
+        {
+            return controller.removeCamera();
+        }
+
+        public void UpdateCamera(float deltaTime)
+        {
+            controller.updateCamera(deltaTime);
+        }
+
+        public override void Dispose()
+        {
+            controller.Dispose();
         }
     }
 }

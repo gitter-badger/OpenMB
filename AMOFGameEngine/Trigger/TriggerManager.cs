@@ -4,13 +4,19 @@ using System.Linq;
 using System.Text;
 using AMOFGameEngine.Script;
 using AMOFGameEngine.Script.Command;
+using System.ComponentModel;
+using AMOFGameEngine.Game;
 
 namespace AMOFGameEngine.Trigger
 {
     public class TriggerManager
     {
-        public List<ITrigger> Triggers { get; set; }
+        public Dictionary<string, ScriptTrigger> Triggers { get; set; }
+        private List<ScriptTrigger> triggerDelayQueue;
+        private List<ScriptTrigger> triggerExecuteQueue;
+        private List<ScriptTrigger> triggerForzenQueue;
         private static TriggerManager instance;
+        private GameWorld world;
         public static TriggerManager Instance
         {
             get
@@ -24,54 +30,84 @@ namespace AMOFGameEngine.Trigger
         }
         public TriggerManager()
         {
-            Triggers = new List<ITrigger>();
+            Triggers = new Dictionary<string, ScriptTrigger>();
+            triggerDelayQueue = new List<ScriptTrigger>();
+            triggerExecuteQueue = new List<ScriptTrigger>();
+            triggerForzenQueue = new List<ScriptTrigger>();
+        }
+
+        public void Init(GameWorld world, ScriptContext context)
+        {
+            this.world = world;
+            Triggers = context.GetTriggers();
         }
         public void Update(float timeSinceLastFrame)
         {
-            for (int i = 0; i < Triggers.Count; i++)
+            for (int i = Triggers.Count - 1; i >= 0; i--)
             {
-                if(Triggers[i].CheckCondition())
-                    Triggers[i].Execute();
+                if (Triggers.ElementAt(i).Value.delayTime > 0)
+                {
+                    Triggers.ElementAt(i).Value.CurrentDelay = Triggers.ElementAt(i).Value.delayTime;
+                    triggerDelayQueue.Add(Triggers.ElementAt(i).Value);
+                }
+                else
+                {
+                    triggerExecuteQueue.Add(Triggers.ElementAt(i).Value);
+                }
+                Triggers.Remove(Triggers.ElementAt(i).Key);
+            }
+
+            for (int i = triggerDelayQueue.Count - 1; i >= 0; i--)
+            {
+                if (triggerDelayQueue[i].CurrentDelay > 0)
+                {
+                    triggerDelayQueue[i].CurrentDelay--;
+                }
+                else
+                {
+                    triggerExecuteQueue.Add(triggerDelayQueue[i]);
+                    triggerDelayQueue.Remove(triggerDelayQueue[i]);
+                }
+            }
+
+            for (int i = triggerExecuteQueue.Count - 1; i >= 0; i--)
+            {
+                BackgroundWorker worker = new BackgroundWorker();
+                worker.DoWork += (o, e) =>
+                {
+                    int index = int.Parse(e.Argument.ToString());
+                    triggerExecuteQueue[index].Execute(world);
+                };
+                worker.RunWorkerAsync(i);
+            }
+
+            for (int i = triggerForzenQueue.Count - 1; i >= 0; i--)
+            {
+                if (triggerForzenQueue[i].frozenTime == ScriptTrigger.TRIGGER_ONCE)
+                {
+                    continue;
+                }
+
+                if (triggerForzenQueue[i].frozenTime > 0)
+                {
+                    triggerForzenQueue[i].CurrentFrozen--;
+                }
+                else
+                {
+                    if(!Triggers.ContainsKey(triggerForzenQueue[i].Name))
+                    {
+                        Triggers.Add(triggerForzenQueue[i].Name, triggerForzenQueue[i]);
+                    }
+                    triggerForzenQueue.Remove(triggerForzenQueue[i]);
+                }
             }
         }
 
-        public List<ITrigger> ParseTriggerFromFile(string fileName, string triggerName = null, params object[] paramters)
+        private void Trigger_ExecuteCompleted(ScriptTrigger trigger)
         {
-            List<ITrigger> dummyTriggers = new List<ITrigger>();
-            ScriptLoader loader = new ScriptLoader();
-            var commands = loader.Parse(fileName);
-            while (commands.Count > 0)
-            {
-                IScriptCommand command = commands.Dequeue();
-                if (command is TriggerScriptCommand)
-                {
-                    DummyTrigger trigger = new DummyTrigger();
-                    trigger.OnCheckTriggerCondition += (() => {
-                        if (command.SubCommands.Count == 2)
-                        {
-                            var conditioncommandSegement = command.SubCommands[0];
-                            for (int i = 0; i < conditioncommandSegement.SubCommands.Count; i++)
-                            {
-                                conditioncommandSegement.SubCommands[i].Execute(paramters);
-                            }
-                        }
-                    });
-                    trigger.OnExecuteTrigger += (() =>
-                    {
-                        if (command.SubCommands.Count == 2)
-                        {
-                            var executeCommandSegement = command.SubCommands[1];
-                            for (int i = 0; i < executeCommandSegement.SubCommands.Count; i++)
-                            {
-                                executeCommandSegement.SubCommands[i].Execute(paramters);
-                            }
-                        }
-                    });
-                    Triggers.Add(trigger);
-                    dummyTriggers.Add(trigger);
-                }
-            }
-            return dummyTriggers;
+            triggerExecuteQueue.Remove(trigger);
+            trigger.CurrentFrozen = trigger.frozenTime;
+            triggerForzenQueue.Add(trigger);
         }
     }
 }

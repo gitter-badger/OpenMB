@@ -11,8 +11,8 @@ namespace AMOFGameEngine.Game
     {
         protected Camera cam;
         protected Scene physicsScene;
-        protected ItemFactory instance;
-        public ItemFactory Instance
+        protected static ItemFactory instance;
+        public static ItemFactory Instance
         {
             get
             {
@@ -31,8 +31,12 @@ namespace AMOFGameEngine.Game
         }
 
         public Item Produce(
-            string name, string meshName, ItemType type,
-            double damage, int range, int ammoCapcity = -1,
+            int id,
+            string desc, string meshName, ItemType type,
+            ItemUseAttachOption itemUseAttachOption,
+            ItemHaveAttachOption itemHaveAttachOption,
+            double damage, int range,
+            GameWorld world, int ammoCapcity = -1,
             double amourNum = -1)
         {
             Item item = null;
@@ -41,14 +45,30 @@ namespace AMOFGameEngine.Game
                 case ItemType.IT_BOW | ItemType.IT_CROSSBOW | ItemType.IT_RIFLE | ItemType.IT_PISTOL|
                      ItemType.IT_ONE_HAND_WEAPON | ItemType.IT_TWO_HAND_WEAPON| ItemType.IT_POLEARM |
                      ItemType.IT_RPG_MISSILE | ItemType.IT_SUBMACHINE_GUN| ItemType.IT_THROWN:
-                     item = ItemWeaponFactory.Instance.Produce(name, meshName, type, damage, range);
+                     item = ItemWeaponFactory.Instance.Produce(
+                         id,
+                         desc, meshName, type,
+                         itemUseAttachOption,
+                         itemHaveAttachOption,
+                         damage, range,
+                         world);
                      break;
                 case ItemType.IT_HAND_ARMOUR| ItemType.IT_HEAD_ARMOUR| ItemType.IT_BODY_ARMOUR| 
                      ItemType.IT_FOOT_ARMOUR:
-                     item = ItemArmourFactory.Instance.Produce(name, meshName, type, amourNum);
+                     item = ItemArmourFactory.Instance.Produce(
+                         id,
+                         desc, meshName, type, 
+                         itemUseAttachOption,
+                         itemHaveAttachOption,
+                         amourNum,
+                         world);
                      break;
                 case ItemType.IT_ARROW | ItemType.IT_BOLT | ItemType.IT_BULLET:
-                     ItemAmmoFactory.Produce(name, meshName, type, damage, ammoCapcity);
+                     item = ItemAmmoFactory.Produce(
+                         desc, meshName, type, 
+                         itemUseAttachOption, 
+                         itemHaveAttachOption, 
+                         damage, ammoCapcity);
                      break;
                 case ItemType.IT_GOOD:
                     break;
@@ -57,6 +77,12 @@ namespace AMOFGameEngine.Game
             }
             
             return item;
+        }
+
+        public Item Produce(Mods.XML.ModItemDfnXML itemXml, GameWorld world)
+        {
+            return world.Map.Produce(itemXml.Desc, itemXml.MeshName, itemXml.Type, itemXml.AttachOptionWhenUse,
+                itemXml.AttachOptionWhenHave, double.Parse(itemXml.Damage), int.Parse(itemXml.Range), world, itemXml.AmmoCapcity, itemXml.AmourNum);
         }
     }
 }

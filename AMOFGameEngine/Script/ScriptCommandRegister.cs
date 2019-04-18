@@ -8,7 +8,14 @@ namespace AMOFGameEngine.Script
 {
     class ScriptCommandRegister
     {
-        public Dictionary<string, Type> RegisteredCommand { get; }
+        private Dictionary<string, Type> registerCommand;
+        public Dictionary<string, Type> RegisteredCommand 
+        {
+            get
+            {
+                return registerCommand;
+            }
+        }
         private static ScriptCommandRegister instance;
         public static ScriptCommandRegister Instance
         {
@@ -22,10 +29,12 @@ namespace AMOFGameEngine.Script
 
         public ScriptCommandRegister()
         {
-            RegisteredCommand = new Dictionary<string, Type>();
+            
+            registerCommand = new Dictionary<string, Type>();
             RegisteredCommand.Add("assign", typeof(AssignScriptCommand));
             RegisteredCommand.Add("agent_equip_item", typeof(AgentEquipItemScriptCommand));
             RegisteredCommand.Add("call", typeof(CallScriptCommand));
+            RegisteredCommand.Add("change_hitpoint", typeof(ChangeHitpointScriptCommand));
             RegisteredCommand.Add("condition", typeof(TriggerConditionScriptCommand));
             RegisteredCommand.Add("end", typeof(EndScriptCommand));
             RegisteredCommand.Add("execute", typeof(TriggerExecuteSrciptCommand));
@@ -35,7 +44,7 @@ namespace AMOFGameEngine.Script
             RegisteredCommand.Add("spawn", typeof(SpawnScriptCommand));
             RegisteredCommand.Add("store", typeof(StoreScriptCommand));
             RegisteredCommand.Add("team", typeof(TeamScriptCommand));
-            RegisteredCommand.Add("tigger", typeof(TriggerScriptCommand));
+            RegisteredCommand.Add("trigger", typeof(TriggerScriptCommand));
             RegisteredCommand.Add("vector_get_x", typeof(VectorGetXScriptCommand));
             RegisteredCommand.Add("vector_get_y", typeof(VectorGetYScriptCommand));
             RegisteredCommand.Add("vector_get_z", typeof(VectorGetZScriptCommand));

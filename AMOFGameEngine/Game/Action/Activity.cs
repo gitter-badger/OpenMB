@@ -5,7 +5,7 @@ using System.Text;
 
 namespace AMOFGameEngine.Game.Action
 {
-    public enum ActionState { Queued, Done, Cancel}
+    public enum ActionState { Queued, Done, Cancel,Processing}
     //An Action in world
     public abstract class Activity : IUpdate
     {
@@ -18,6 +18,10 @@ namespace AMOFGameEngine.Game.Action
             get
             {
                 return parentActivity;
+            }
+            set
+            {
+                parentActivity = this;
             }
         }
         public Activity NextActivity
@@ -34,7 +38,7 @@ namespace AMOFGameEngine.Game.Action
 
         public void Enqueue(Activity newActivity)
         {
-            ParentActivity = this;
+            parentActivity = this;
             NextActivity = newActivity;
         }
 

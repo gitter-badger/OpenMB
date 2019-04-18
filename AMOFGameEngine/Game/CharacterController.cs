@@ -8,6 +8,7 @@ using org.critterai.nav;
 using Mogre.PhysX;
 using AMOFGameEngine.Sound;
 using AMOFGameEngine.Utilities;
+using AMOFGameEngine.Mods.XML;
 
 namespace AMOFGameEngine.Game
 {
@@ -16,7 +17,6 @@ namespace AMOFGameEngine.Game
     /// </summary>
     public class CharacterController
     {
-        private int NUM_ANIMS = 13;          // number of animations the character has
         private const int CHAR_HEIGHT = 5;      // height of character's center of mass above ground
         private const int CAM_HEIGHT = 2;          // height of camera above character's center of mass
         public const int RUN_SPEED = 17;           // character running speed in units per second
@@ -32,38 +32,37 @@ namespace AMOFGameEngine.Game
         private SceneNode cameraNode;
         private float pivotPitch;
         private Entity bodyEnt;
-        private Entity sword1;
-        private Entity sword2;
-        private List<AnimationState> anims = new List<AnimationState>();    // master animation list
-        private AnimID baseAnimID;                   // current base (full- or lower-body) animation
-        private AnimID topAnimID;                    // current top (upper-body) animation
+        private List<CharacterAnimation> anims = new List<CharacterAnimation>();    // master animation list
+        private CharacterAnimation baseAnim;                   // current base (full- or lower-body) animation
+        private CharacterAnimation topAnim;                    // current top (upper-body) animation
         private List<bool> fadingIn = new List<bool>();            // which animations are fading in
         private List<bool> fadingOut = new List<bool>();           // which animations are fading out
-        private bool swordsDrawn;
         private Mogre.Vector3 keyDirection;      // player's local intended direction based on WASD keys
         private Mogre.Vector3 goalDirection;     // actual intended direction in world-space
         private float verticalVelocity;     // for jumping
         private float timer;                // general timer to see how long animations have been playing
-        private string charaName;
         private string charaMeshName;
         private bool controlled;
         private NavmeshQuery query;
-        private Actor physicsActor;
         private Physics physics;
+        private ControllerManager cotrollerManager;
         private Scene physicsScene;
-        private Mogre.Vector3 targetDestinaton;
-        private float distance;
         private Mogre.Vector3 direction;
-        private Queue<Mogre.Vector3> walkPath;
+        private ModCharacterSkinDfnXML skin;
+        private CapsuleController physicsController;
+        private Mogre.Vector3 lastPosition;
+
+        public SceneNode BodyNode
+        {
+            get { 
+                return bodyNode; 
+            }
+        }
         public Mogre.Vector3 Position
         {
             get
             {
                 return bodyNode.Position;
-            }
-            set
-            {
-                bodyNode.Position = value;
             }
         }
         public Mogre.Vector3 Direction
@@ -76,16 +75,6 @@ namespace AMOFGameEngine.Game
             {
                 direction = value;
             }
-        }
-
-        public void Attack()
-        {
-
-            //Play Attack animation
-            baseAnimID = AnimID.ANIM_SLICE_VERTICAL;
-            topAnimID = AnimID.ANIM_SLICE_VERTICAL;
-            SetBaseAnimation(baseAnimID);
-            SetTopAnimation(topAnimID);
         }
 
         public enum AnimID
@@ -112,47 +101,149 @@ namespace AMOFGameEngine.Game
             Camera cam,
             NavmeshQuery query,
             Scene physicsScene,
-            string name, 
             string meshName, 
-            bool controlled)
+            ModCharacterSkinDfnXML skin,
+            bool isBot,
+            Mogre.Vector3 initPosition)
         {
             camera = cam;
-            this.controlled = controlled;
+            this.controlled = !isBot;
             itemAttached = new List<Entity>();
             this.sceneMgr = cam.SceneManager;
-            charaName = name;
             charaMeshName = meshName;
             this.physicsScene = physicsScene;
             physics = physicsScene.Physics;
+            cotrollerManager = physics.ControllerManager;
             this.query = query;
-            setupBody();
-            targetDestinaton = Mogre.Vector3.ZERO;
+            setupBody(initPosition);
             if (controlled)
             {
                 setupCamera(cam);
             }
+
+            this.skin = skin;
+
             setupAnimations();
             setupPhysics();
         }
 
+        /// <summary>
+        /// Create character body
+        /// </summary>
+        /// <returns>success return True, fail return False</returns>
+        private bool setupBody(Mogre.Vector3 initPosition)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(charaMeshName))
+                {
+                    bodyNode = sceneMgr.RootSceneNode.CreateChildSceneNode(Mogre.Vector3.UNIT_Y * CHAR_HEIGHT * initPosition.y);
+                    bodyEnt = sceneMgr.CreateEntity(Guid.NewGuid().ToString(), charaMeshName);
+                    bodyNode.AttachObject(bodyEnt);
+                    bodyNode.SetPosition(initPosition.x, bodyNode.Position.y, initPosition.z);
+                    keyDirection = Mogre.Vector3.ZERO;
+                    verticalVelocity = 0;
+                    lastPosition = initPosition;
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            catch(Exception ex)
+            {
+                GameManager.Instance.log.LogMessage("Engine Error: " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Set Animations for Character
+        /// </summary>
+        private void setupAnimations()
+        {
+            bodyEnt.Skeleton.BlendMode = SkeletonAnimationBlendMode.ANIMBLEND_CUMULATIVE;
+
+            // populate our animation list
+            for (int i = 0; i < skin.RaceAnimations.Count; i++)
+            {
+                var raceAnimation = skin.RaceAnimations[i];
+                AnimationState animState = null;
+                if (!string.IsNullOrEmpty(raceAnimation.Name))
+                {
+                    animState = bodyEnt.GetAnimationState(raceAnimation.Name);
+                    animState.Loop = true;
+                }
+                CharacterAnimation characterAnim = new CharacterAnimation(raceAnimation.Name, animState, raceAnimation.type);
+                anims.Add(characterAnim);
+                bool fadingIn = false;
+                this.fadingIn.Add(fadingIn);
+                bool fadingOut = false;
+                this.fadingOut.Add(fadingOut);
+            }
+
+            // start off in the idle state (top and bottom together)
+            SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_BASE).First());
+            SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_TOP).First());
+
+            // relax the hands since we're not holding anything
+            anims.Where(o => o.Type == CharacterAnimationType.CAT_HANDS_RELAXED).First().AnimationState.Enabled = true;
+
+            //swordsDrawn = false;
+        }
+
+        /// <summary>
+        /// Set the camera
+        /// </summary>
+        /// <param name="cam">Camera Instance</param>
+        public void setupCamera(Camera cam)
+        {
+            cameraPivot = cam.SceneManager.RootSceneNode.CreateChildSceneNode();
+            // this is where the camera should be soon, and it spins around the pivot
+            cameraGoal = cameraPivot.CreateChildSceneNode(new Mogre.Vector3(0, 0, 15));
+            // this is where the camera actually is
+            cameraNode = cam.SceneManager.RootSceneNode.CreateChildSceneNode();
+            cameraNode.Position = cameraPivot.Position + cameraGoal.Position;
+
+            cameraPivot.SetFixedYawAxis(true);
+            cameraGoal.SetFixedYawAxis(true);
+            cameraNode.SetFixedYawAxis(true);
+
+            // our model is quite small, so reduce the clipping planes
+            cam.NearClipDistance = 0.1f;
+            cam.FarClipDistance = 10000f;
+            cameraNode.AttachObject(cam);
+
+            pivotPitch = 0;
+        }
+
+        public Camera removeCamera()
+        {
+            Camera cam = (Camera)cameraNode.GetAttachedObjectIterator().ElementAt(0);
+            cameraNode.DetachAllObjects();
+            sceneMgr.DestroySceneNode(cameraNode);
+            sceneMgr.DestroySceneNode(cameraGoal);
+            sceneMgr.DestroySceneNode(cameraPivot);
+            cameraNode = null;
+            cameraGoal = null;
+            cameraPivot = null;
+            return cam;
+        }
+
         private void setupPhysics()
         {
-            BodyDesc bodyDesc = new BodyDesc();
-            bodyDesc.LinearVelocity = new Mogre.Vector3(0, 2, 5);
-
-            ActorDesc actorDesc = new ActorDesc();
-            actorDesc.Density = 4;
-            actorDesc.Body = bodyDesc;
-            actorDesc.GlobalPosition = bodyNode.Position;
-            actorDesc.GlobalOrientation = bodyNode.Orientation.ToRotationMatrix();
-
-            // a quick trick the get the size of the physics shape right is to use the bounding box of the entity
-            actorDesc.Shapes.Add(
-                physics.CreateConvexHull(new
-                StaticMeshData(bodyEnt.GetMesh())));
-
-            // finally, create the actor in the physics scene
-            physicsActor = physicsScene.CreateActor(actorDesc);
+            CapsuleControllerDesc desc = new CapsuleControllerDesc();
+            desc.Position = bodyNode.Position;
+            desc.StepOffset = 0.01f;
+            desc.SlopeLimit = 0.5f; // max slope the character can walk
+            desc.Radius = 2.5f; //radius of the capsule
+            desc.Height = CHAR_HEIGHT; //height of the controller
+            desc.ClimbingMode = CapsuleClimbingModes.Easy;
+            desc.UpDirection = HeightFieldAxes.Y; // Specifies the 'up' direction
+            desc.Position = bodyNode.Position;
+            physicsController = cotrollerManager.CreateController(physicsScene, desc);
+            physicsController.Actor.Group = 3;
         }
 
         /// <summary>
@@ -184,35 +275,6 @@ namespace AMOFGameEngine.Game
         }
 
         /// <summary>
-        /// Create character body
-        /// </summary>
-        /// <returns>success return True, fail return False</returns>
-        private bool setupBody()
-        {
-            try
-            {
-                if (!string.IsNullOrEmpty(charaMeshName) && !string.IsNullOrEmpty(charaName))
-                {
-                    bodyNode = sceneMgr.RootSceneNode.CreateChildSceneNode(Mogre.Vector3.UNIT_Y * CHAR_HEIGHT);
-                    bodyEnt = sceneMgr.CreateEntity(charaName, charaMeshName);
-                    bodyNode.AttachObject(bodyEnt);
-                    keyDirection = Mogre.Vector3.ZERO;
-                    verticalVelocity = 0;
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            catch(Exception ex)
-            {
-                GameManager.Instance.log.LogMessage("Engine Error: " + ex.Message);
-                return false;
-            }
-        }
-
-        /// <summary>
         /// Update Character
         /// </summary>
         /// <param name="deltaTime"></param>
@@ -225,50 +287,26 @@ namespace AMOFGameEngine.Game
                 updateCamera(deltaTime);
             }
 
-            physicsScene.FlushStream();
-            physicsScene.FetchResults(SimulationStatuses.AllFinished, true);
-            physicsScene.Simulate(deltaTime);
+            if (!controlled)
+            {
+                //bodyNode.Position = physicsActor.GlobalPosition;
+                //bodyNode.Orientation = physicsActor.GlobalOrientationQuaternion;
+            }
         }
 
         public void injectKeyDown(KeyEvent evt)
         {
-            if (evt.key == KeyCode.KC_Q && (topAnimID == AnimID.ANIM_IDLE_TOP || topAnimID == AnimID.ANIM_RUN_TOP))
-            {
-                // take swords out (or put them back, since it's the same animation but reversed)
-                SetTopAnimation(AnimID.ANIM_DRAW_SWORDS, true);
-                timer = 0;
-            }
-            else if (evt.key == KeyCode.KC_E && !swordsDrawn)
-            {
-                if (topAnimID == AnimID.ANIM_IDLE_TOP || topAnimID == AnimID.ANIM_RUN_TOP)
-                {
-                    // start dancing
-                    SetBaseAnimation(AnimID.ANIM_DANCE, true);
-                    SetTopAnimation(AnimID.ANIM_NONE);
-                    // disable hand animation because the dance controls hands
-                    anims[(int)AnimID.ANIM_HANDS_RELAXED].Enabled = false;
-                }
-                else if (baseAnimID == AnimID.ANIM_DANCE)
-                {
-                    // stop dancing
-                    SetBaseAnimation(AnimID.ANIM_IDLE_BASE);
-                    SetTopAnimation(AnimID.ANIM_IDLE_TOP);
-                    // re-enable hand animation-
-                    anims[(int)AnimID.ANIM_HANDS_RELAXED].Enabled = true;
-                }
-            }
-
             // keep track of the player's intended direction
-            else if (evt.key == KeyCode.KC_W) keyDirection.z = -1;
+            if (evt.key == KeyCode.KC_W) keyDirection.z = -1;
             else if (evt.key == KeyCode.KC_A) keyDirection.x = -1;
             else if (evt.key == KeyCode.KC_S) keyDirection.z = 1;
             else if (evt.key == KeyCode.KC_D) keyDirection.x = 1;
 
-            else if (evt.key == KeyCode.KC_SPACE && (topAnimID == AnimID.ANIM_IDLE_TOP || topAnimID == AnimID.ANIM_RUN_TOP))
+            else if (evt.key == KeyCode.KC_SPACE && (topAnim.Type == CharacterAnimationType.CAT_IDLE_TOP || topAnim.Type == CharacterAnimationType.CAT_RUN_TOP))
             {
                 // jump if on ground
-                SetBaseAnimation(AnimID.ANIM_JUMP_START, true);
-                SetTopAnimation(AnimID.ANIM_NONE);
+                SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_JUMP_START).First(), true);
+                SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_NONE).First());
                 timer = 0;
             }
 
@@ -278,11 +316,14 @@ namespace AMOFGameEngine.Game
                 SoundManager.Instance.PlaySoundAtNode(bodyNode,"battle_cry_1");
             }
 
-            if (!keyDirection.IsZeroLength && baseAnimID == AnimID.ANIM_IDLE_BASE)
+            if (!keyDirection.IsZeroLength && baseAnim.Type == CharacterAnimationType.CAT_IDLE_BASE)
             {
                 // start running if not already moving and the player wants to move
-                SetBaseAnimation(AnimID.ANIM_RUN_BASE, true);
-                if (topAnimID == AnimID.ANIM_IDLE_TOP) SetTopAnimation(AnimID.ANIM_RUN_TOP, true);
+                SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_BASE).First(), true);
+                if (topAnim.Type == CharacterAnimationType.CAT_IDLE_TOP)
+                {
+                    SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_TOP).First(), true);
+                }
             }
         }
 
@@ -293,11 +334,14 @@ namespace AMOFGameEngine.Game
             else if (evt.key == KeyCode.KC_S && keyDirection.z == 1) keyDirection.z = 0;
             else if (evt.key == KeyCode.KC_D && keyDirection.x == 1) keyDirection.x = 0;
 
-            if (keyDirection.IsZeroLength && baseAnimID == AnimID.ANIM_RUN_BASE)
+            if (keyDirection.IsZeroLength && baseAnim.Type == CharacterAnimationType.CAT_RUN_BASE)
             {
                 // stop running if already moving and the player doesn't want to move
-                SetBaseAnimation(AnimID.ANIM_IDLE_BASE);
-                if (topAnimID == AnimID.ANIM_RUN_TOP) SetTopAnimation(AnimID.ANIM_IDLE_TOP);
+                SetBaseAnimation(anims.Where(o=>o.Type== CharacterAnimationType.CAT_IDLE_BASE).First());
+                if (topAnim.Type == CharacterAnimationType.CAT_RUN_TOP)
+                {
+                    SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_TOP).First());
+                }
             }
         }
 
@@ -336,79 +380,20 @@ namespace AMOFGameEngine.Game
 
         public void injectMouseDown(MouseEvent evt, MouseButtonID id)
         {
-            if (swordsDrawn && (topAnimID == AnimID.ANIM_IDLE_TOP || topAnimID == AnimID.ANIM_RUN_TOP))
-            {
-                // if swords are out, and character's not doing something weird, then SLICE!
-                if (id == MouseButtonID.MB_Left) SetTopAnimation(AnimID.ANIM_SLICE_VERTICAL, true);
-                else if (id == MouseButtonID.MB_Right) SetTopAnimation(AnimID.ANIM_SLICE_HORIZONTAL, true);
-                timer = 0;
-            }
-        }
-
-        /// <summary>
-        /// Set Animations for Character
-        /// </summary>
-        private void setupAnimations()
-        {
-            bodyEnt.Skeleton.BlendMode = SkeletonAnimationBlendMode.ANIMBLEND_CUMULATIVE;
-
-            var animNames = new string[]
-	    {"IdleBase", "IdleTop", "RunBase", "RunTop", "HandsClosed", "HandsRelaxed", "DrawSwords",
-	    "SliceVertical", "SliceHorizontal", "Dance", "JumpStart", "JumpLoop", "JumpEnd"};
-
-            // populate our animation list
-            for (int i = 0; i < NUM_ANIMS; i++)
-            {
-                AnimationState animState;
-                animState = bodyEnt.GetAnimationState(animNames[i]);
-                anims.Add(animState);
-                animState.Loop = (true);
-                bool fadingIn = false;
-                this.fadingIn.Add(fadingIn);
-                bool fadingOut = false;
-                this.fadingOut.Add(fadingOut);
-            }
-
-            // start off in the idle state (top and bottom together)
-            SetBaseAnimation(AnimID.ANIM_IDLE_BASE);
-            SetTopAnimation(AnimID.ANIM_IDLE_TOP);
-
-            // relax the hands since we're not holding anything
-            anims[(int)AnimID.ANIM_HANDS_RELAXED].Enabled = (true);
-
-            swordsDrawn = false;
-        }
-
-        /// <summary>
-        /// Set the camera
-        /// </summary>
-        /// <param name="cam">Camera Instance</param>
-        private void setupCamera(Camera cam)
-        {
-            cameraPivot = cam.SceneManager.RootSceneNode.CreateChildSceneNode();
-            // this is where the camera should be soon, and it spins around the pivot
-            cameraGoal = cameraPivot.CreateChildSceneNode(new Mogre.Vector3(0, 0, 15));
-            // this is where the camera actually is
-            cameraNode = cam.SceneManager.RootSceneNode.CreateChildSceneNode();
-            cameraNode.Position = cameraPivot.Position + cameraGoal.Position;
-
-            cameraPivot.SetFixedYawAxis(true);
-            cameraGoal.SetFixedYawAxis(true);
-            cameraNode.SetFixedYawAxis(true);
-
-            // our model is quite small, so reduce the clipping planes
-            cam.NearClipDistance = 0.1f;
-            cam.FarClipDistance = 10000f;
-            cameraNode.AttachObject(cam);
-
-            pivotPitch = 0;
+            //if (swordsDrawn && (topAnimID == AnimID.ANIM_IDLE_TOP || topAnimID == AnimID.ANIM_RUN_TOP))
+            //{
+            //    // if swords are out, and character's not doing something weird, then SLICE!
+            //    if (id == MouseButtonID.MB_Left) SetTopAnimation(AnimID.ANIM_SLICE_VERTICAL, true);
+            //    else if (id == MouseButtonID.MB_Right) SetTopAnimation(AnimID.ANIM_SLICE_HORIZONTAL, true);
+            //    timer = 0;
+            //}
         }
 
         private void updateBody(float deltaTime)
         {
             goalDirection = Mogre.Vector3.ZERO;   // we will calculate this
 
-            if (keyDirection != Mogre.Vector3.ZERO && baseAnimID != AnimID.ANIM_DANCE)
+            if (keyDirection != Mogre.Vector3.ZERO && baseAnim.Type != CharacterAnimationType.CAT_CUSTOME_BLOCK)
             {
                 // calculate actually goal direction in world based on player's key directions
                 goalDirection += keyDirection.z * cameraNode.Orientation.ZAxis;
@@ -423,7 +408,7 @@ namespace AMOFGameEngine.Game
                 // this is how much the character CAN turn this frame
                 float yawAtSpeed = yawToGoal / Mogre.Math.Abs(yawToGoal) * deltaTime * TURN_SPEED;
                 // reduce "turnability" if we're in midair
-                if (baseAnimID == AnimID.ANIM_JUMP_LOOP) yawAtSpeed *= 0.2f;
+                if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_LOOP) yawAtSpeed *= 0.2f;
 
                 // turn as much as we can, but not more than we need to
                 if (yawToGoal < 0) yawToGoal = System.Math.Min(0, System.Math.Max(yawToGoal, yawAtSpeed)); //yawToGoal = Math::Clamp<Real>(yawToGoal, yawAtSpeed, 0);
@@ -432,128 +417,91 @@ namespace AMOFGameEngine.Game
                 bodyNode.Yaw(new Degree(yawToGoal));
 
                 // move in current body direction (not the goal direction)
-                bodyNode.Translate(0, 0, deltaTime * RUN_SPEED * anims[(int)baseAnimID].Weight,
+                var dist = deltaTime * RUN_SPEED/* * baseAnim.AnimationState.Weight*/;
+                Mogre.Vector3 displacement = new Mogre.Vector3(0, 0, dist);
+                bodyNode.Translate(displacement.x, displacement.y, displacement.z,
                     Node.TransformSpace.TS_LOCAL);
+
+                /*Get world movement*/
+                displacement = bodyNode.Orientation * displacement;
+
+                ControllerFlags flag;
+                physicsController.Move(displacement, 0, 0.01f, out flag);
+                bodyNode.Position = new Mogre.Vector3(
+                    physicsController.Actor.GlobalPosition.x,
+                    bodyNode.Position.y, 
+                    physicsController.Actor.GlobalPosition.z);
             }
 
-            if (baseAnimID == AnimID.ANIM_JUMP_LOOP)
+            if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_LOOP)
             {
                 // if we're jumping, add a vertical offset too, and apply gravity
                 bodyNode.Translate(0, verticalVelocity * deltaTime, 0, Node.TransformSpace.TS_LOCAL);
                 verticalVelocity -= GRAVITY * deltaTime;
 
                 Mogre.Vector3 pos = bodyNode.Position;
-                if (pos.y <= CHAR_HEIGHT)
+                if (pos.y <= CHAR_HEIGHT * lastPosition.y)
                 {
                     // if we've hit the ground, change to landing state
-                    pos.y = CHAR_HEIGHT;
+                    pos.y = CHAR_HEIGHT * lastPosition.y;
                     bodyNode.Position = pos;
-                    SetBaseAnimation(AnimID.ANIM_JUMP_END, true);
+                    ControllerFlags flag;
+                    physicsController.Move(pos, 1 << 3, 0.01f, out flag);
+                    bodyNode.Position = physicsController.Actor.GlobalPosition;
+                    SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_JUMP_END).First(), true);
                     timer = 0;
                 }
             }
         }
 
+        private float convertToLessThan360(float p)
+        {
+            return p % 360;
+        }
+
         private void updateAnimations(float deltaTime)
         {
             float baseAnimSpeed = 1;
-            float topAnimSpeed = 1;
+            //float topAnimSpeed = 1;
 
             timer += deltaTime;
-
-            if (topAnimID == AnimID.ANIM_DRAW_SWORDS)
+            if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_START)
             {
-                sword1 = itemAttached.Where(o => o.Name == "SinbadSword1").First();
-                sword2 = itemAttached.Where(o => o.Name == "SinbadSword2").First();
-                // flip the draw swords animation if we need to put it back
-                topAnimSpeed = swordsDrawn ? -1 : 1;
-
-                // half-way through the animation is when the hand grasps the handles...
-                if (timer >= anims[(int)topAnimID].Length / 2 &&
-                    timer - deltaTime < anims[(int)topAnimID].Length / 2)
-                {
-                    // so transfer the swords from the sheaths to the hands
-                    bodyEnt.DetachAllObjectsFromBone();
-                    bodyEnt.AttachObjectToBone(swordsDrawn ? "Sheath.L" : "Handle.L", sword1);
-                    bodyEnt.AttachObjectToBone(swordsDrawn ? "Sheath.R" : "Handle.R", sword2);
-                    // change the hand state to grab or let go
-                    anims[(int)AnimID.ANIM_HANDS_CLOSED].Enabled = !swordsDrawn;
-                    anims[(int)AnimID.ANIM_HANDS_RELAXED].Enabled = swordsDrawn;
-
-                    // toggle sword trails
-                    if (swordsDrawn)
-                    {
-                        //mSwordTrail.Visible = false;
-                        //mSwordTrail.RemoveNode(mSword1.ParentNode);
-                        //mSwordTrail.RemoveNode(mSword2.ParentNode);
-                    }
-                    else
-                    {
-                        //mSwordTrail.Visible = true;
-                        //mSwordTrail.AddNode(mSword1.ParentNode);
-                        //mSwordTrail.AddNode(mSword2.ParentNode);
-                    }
-                }
-
-                if (timer >= anims[(int)topAnimID].Length)
-                {
-                    // animation is finished, so return to what we were doing before
-                    if (baseAnimID == AnimID.ANIM_IDLE_BASE) SetTopAnimation(AnimID.ANIM_IDLE_TOP);
-                    else
-                    {
-                        SetTopAnimation(AnimID.ANIM_RUN_TOP);
-                        anims[(int)AnimID.ANIM_RUN_TOP].TimePosition = anims[(int)AnimID.ANIM_RUN_BASE].TimePosition;
-                    }
-                    swordsDrawn = !swordsDrawn;
-                }
-            }
-            else if (topAnimID == AnimID.ANIM_SLICE_VERTICAL || topAnimID == AnimID.ANIM_SLICE_HORIZONTAL)
-            {
-                if (timer >= anims[(int)topAnimID].Length)
-                {
-                    // animation is finished, so return to what we were doing before
-                    if (baseAnimID == AnimID.ANIM_IDLE_BASE) SetTopAnimation(AnimID.ANIM_IDLE_TOP);
-                    else
-                    {
-                        SetTopAnimation(AnimID.ANIM_RUN_TOP);
-                        anims[(int)AnimID.ANIM_RUN_TOP].TimePosition = anims[(int)AnimID.ANIM_RUN_BASE].TimePosition;
-                    }
-                }
-
-                // don't sway hips from side to side when slicing. that's just embarrasing.
-                if (baseAnimID == AnimID.ANIM_IDLE_BASE) baseAnimSpeed = 0;
-            }
-            else if (baseAnimID == AnimID.ANIM_JUMP_START)
-            {
-                if (timer >= anims[(int)baseAnimID].Length)
+                if (timer >= baseAnim.AnimationState.Length)
                 {
                     // takeoff animation finished, so time to leave the ground!
-                    SetBaseAnimation(AnimID.ANIM_JUMP_LOOP, true);
+                    SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_JUMP_LOOP).First(), true);
                     // apply a jump acceleration to the character
                     verticalVelocity = JUMP_ACCEL;
                 }
             }
-            else if (baseAnimID == AnimID.ANIM_JUMP_END)
+            else if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_END)
             {
-                if (timer >= anims[(int)baseAnimID].Length)
+                if (timer >= baseAnim.AnimationState.Length)
                 {
                     // safely landed, so go back to running or idling
                     if (keyDirection == Mogre.Vector3.ZERO)
                     {
-                        SetBaseAnimation(AnimID.ANIM_IDLE_BASE);
-                        SetTopAnimation(AnimID.ANIM_IDLE_TOP);
+                        SetBaseAnimation(anims.Where(o=>o.Type== CharacterAnimationType.CAT_IDLE_BASE).First());
+                        SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_TOP).First());
                     }
                     else
                     {
-                        SetBaseAnimation(AnimID.ANIM_RUN_BASE, true);
-                        SetTopAnimation(AnimID.ANIM_RUN_TOP, true);
+                        SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_BASE).First(), true);
+                        SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_TOP).First(), true);
                     }
                 }
             }
 
             // increment the current base and top animation times
-            if (baseAnimID != AnimID.ANIM_NONE) anims[(int)baseAnimID].AddTime(deltaTime * baseAnimSpeed);
-            if (topAnimID != AnimID.ANIM_NONE) anims[(int)topAnimID].AddTime(deltaTime * topAnimSpeed);
+            if (baseAnim.Type != CharacterAnimationType.CAT_NONE)
+            {
+                baseAnim.AnimationState.AddTime(deltaTime * baseAnimSpeed);
+            }
+            if (topAnim.Type != CharacterAnimationType.CAT_NONE)
+            {
+                topAnim.AnimationState.AddTime(deltaTime * baseAnimSpeed);
+            }
 
             // apply smooth transitioning between our animations
             fadeAnimations(deltaTime);
@@ -561,30 +509,34 @@ namespace AMOFGameEngine.Game
 
         private void fadeAnimations(float deltaTime)
         {
-            for (int i = 0; i < NUM_ANIMS; i++)
+            for (int i = 0; i < anims.Count; i++)
             {
                 if (fadingIn[i])
                 {
                     // slowly fade this animation in until it has full weight
-                    float newWeight = anims[i].Weight + deltaTime * ANIM_FADE_SPEED;
-                    anims[i].Weight = Utilities.Helper.Clamp(newWeight, 0, 1);
+                    float newWeight = anims[i].AnimationState.Weight + deltaTime * ANIM_FADE_SPEED;
+                    anims[i].AnimationState.Weight = Utilities.Helper.Clamp(newWeight, 0, 1);
                     if (newWeight >= 1) fadingIn[i] = false;
                 }
                 else if (fadingOut[i])
                 {
+                    if (anims[i].AnimationState == null)
+                    {
+                        continue;
+                    }
                     // slowly fade this animation out until it has no weight, and then disable it
-                    float newWeight = anims[i].Weight - deltaTime * ANIM_FADE_SPEED;
-                    anims[i].Weight = Utilities.Helper.Clamp(newWeight, 0, 1);
+                    float newWeight = anims[i].AnimationState.Weight - deltaTime * ANIM_FADE_SPEED;
+                    anims[i].AnimationState.Weight = Utilities.Helper.Clamp(newWeight, 0, 1);
                     if (newWeight <= 0)
                     {
-                        anims[i].Enabled = false;
+                        anims[i].AnimationState.Enabled = false;
                         fadingOut[i] = false;
                     }
                 }
             }
         }
 
-        private void updateCamera(float deltaTime)
+        public void updateCamera(float deltaTime)
         {
             // place the camera pivot roughly at the character's shoulder
             cameraPivot.Position = bodyNode.Position + Mogre.Vector3.UNIT_Y * CAM_HEIGHT;
@@ -618,47 +570,51 @@ namespace AMOFGameEngine.Game
             }
         }
 
-        public void SetBaseAnimation(AnimID id, bool reset = false)
+        public void SetBaseAnimation(CharacterAnimation animation, bool reset = false)
         {
-            if (baseAnimID >= 0 && (int)baseAnimID < NUM_ANIMS)
+            int index = anims.IndexOf(animation);
+            int lastIndex = anims.IndexOf(baseAnim);
+            if (lastIndex != -1)
             {
                 // if we have an old animation, fade it out
-                fadingIn[(int)baseAnimID] = false;
-                fadingOut[(int)baseAnimID] = true;
+                fadingIn[lastIndex] = false;
+                fadingOut[lastIndex] = true;
             }
 
-            baseAnimID = id;
+            baseAnim = animation;
 
-            if (id != AnimID.ANIM_NONE)
+            if (animation.Type != CharacterAnimationType.CAT_NONE)
             {
                 // if we have a new animation, enable it and fade it in
-                anims[(int)id].Enabled = (true);
-                anims[(int)id].Weight = 0;
-                fadingOut[(int)id] = false;
-                fadingIn[(int)id] = true;
-                if (reset) anims[(int)id].TimePosition = 0;
+                anims[index].AnimationState.Enabled = true;
+                anims[index].AnimationState.Weight = 0;
+                fadingOut[index] = false;
+                fadingIn[index] = true;
+                if (reset) anims[index].AnimationState.TimePosition = 0;
             }
         }
 
-        public void SetTopAnimation(AnimID id, bool reset = false)
+        public void SetTopAnimation(CharacterAnimation animation, bool reset = false)
         {
-            if (topAnimID >= 0 && (int)topAnimID < NUM_ANIMS)
+            int index = anims.IndexOf(animation);
+            int lastIndex = anims.IndexOf(topAnim);
+            if (lastIndex != -1)
             {
                 // if we have an old animation, fade it out
-                fadingIn[(int)topAnimID] = false;
-                fadingOut[(int)topAnimID] = true;
+                fadingIn[lastIndex] = false;
+                fadingOut[lastIndex] = true;
             }
 
-            topAnimID = id;
+            topAnim = animation;
 
-            if (id != AnimID.ANIM_NONE)
+            if (animation.Type != CharacterAnimationType.CAT_NONE)
             {
                 // if we have a new animation, enable it and fade it in
-                anims[(int)id].Enabled = true;
-                anims[(int)id].Weight = 0;
-                fadingOut[(int)id] = false;
-                fadingIn[(int)id] = true;
-                if (reset) anims[(int)id].TimePosition = 0;
+                anims[index].AnimationState.Enabled = true;
+                anims[index].AnimationState.Weight = 0;
+                fadingOut[index] = false;
+                fadingIn[index] = true;
+                if (reset) anims[index].AnimationState.TimePosition = 0;
             }
         }
         public bool GetControlled()
@@ -666,88 +622,36 @@ namespace AMOFGameEngine.Game
             return controlled;
         }
 
-        public void WalkTo(Mogre.Vector3 position)
+        public void AttachItem(ItemUseAttachOption itemAttachOption, Item item)
         {
-            walkPath = new Queue<Mogre.Vector3>();
 
-            float a = (position.z - Position.z) / (position.x - Position.x);
-            float b = position.z - a * position.x;
+        }
 
-            for (int i = 0; i < Mogre.Math.Abs(position.x - Position.x) / 5; i++)
+        public CharacterAnimation GetAnimationByName(string animName)
+        {
+            return anims.Where(o => o.Name == animName).First();
+        }
+
+        public string GetAnimationNameByType(CharacterAnimationType characterAnimationType)
+        {
+            var findAnims = anims.Where(o=>o.Type == characterAnimationType);
+            if(findAnims.Count() > 0)
             {
-                walkPath.Enqueue(new Mogre.Vector3(position.x + i, 0, a * (position.x + i) + b));
-            }
-        }
-
-        public void Wander()
-        {
-            throw new NotImplementedException();
-        }
-
-        public void Run()
-        {
-            SetBaseAnimation(AnimID.ANIM_RUN_BASE);
-            SetTopAnimation(AnimID.ANIM_RUN_TOP);
-        }
-
-        private void WalkState(float deltaTime)
-        {
-            if (Direction == Mogre.Vector3.ZERO)
-            {
-                if (nextLocation())
-                {
-                    SetTopAnimation(AnimID.ANIM_RUN_TOP, true);
-                    SetBaseAnimation(AnimID.ANIM_RUN_TOP, true);
-                }
+                return findAnims.ElementAt(0).AnimationState.AnimationName;
             }
             else
             {
-                float move = RUN_SPEED * deltaTime;
-                distance -= move;
-                if (distance <= 0.0f)
-                {
-                    bodyNode.SetPosition(targetDestinaton.x, targetDestinaton.y, targetDestinaton.z);
-                    direction = Mogre.Vector3.ZERO;
-                    if (!nextLocation())
-                    {
-                        SetTopAnimation(AnimID.ANIM_IDLE_TOP, true);
-                        SetBaseAnimation(AnimID.ANIM_IDLE_BASE, true);
-                    }
-                    else
-                    {
-                        Mogre.Vector3 src = bodyNode.Orientation * Mogre.Vector3.UNIT_Z;
-                        if ((1.0f + src.DotProduct(Direction)) < 0.0001f)
-                        {
-                            bodyNode.Yaw(new Degree(180));
-                        }
-                        else
-                        {
-                            Quaternion quat = src.GetRotationTo(Direction);
-                            bodyNode.Rotate(quat);
-                        }
-                    }
-                }
-                else
-                {
-                    bodyNode.Translate(Direction * move);
-                }
+                return null;
             }
         }
 
-        private bool nextLocation()
+        public void Dispose()
         {
-            if (walkPath != null)
+            bodyNode.DetachAllObjects();
+            sceneMgr.RootSceneNode.RemoveChild(bodyNode);
+            if(controlled)
             {
-                if (walkPath.Count == 0)
-                    return false;
-                targetDestinaton = walkPath.Dequeue(); 
-                direction = targetDestinaton - bodyNode.Position;
-                distance = direction.Normalise();
-                return true;
-            }
-            else
-            {
-                return false;
+                removeCamera();
             }
         }
     }

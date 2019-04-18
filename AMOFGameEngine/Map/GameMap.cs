@@ -24,10 +24,9 @@ namespace AMOFGameEngine.Map
     public class GameMap : IMap
     {
         private string mapName;
-        private List<ITrigger> mapTriggers;
         private DotSceneLoader.DotSceneLoader mapLoader;
         private List<Character> agents;
-        private List<GameObject> staticObjects;
+        private List<GameObject> gameObjects;
         private List<ActorNode> actorNodeList;
         private ScriptLoader scriptLoader;
         private SceneManager scm;
@@ -36,14 +35,17 @@ namespace AMOFGameEngine.Map
         //private NavmeshQuery query;
         private ModData modData;
         private Physics physics;
+        private ControllerManager controllerMgr;
         private Character playerAgent;
         private Camera cam;
         private GameWorld world;
         private AIMesh aimesh;
-        private Mogre.Vector3 moveOffset;
         private List<Mogre.Vector3> aimeshVertexData;
         private List<Mogre.Vector3> aimeshIndexData;
         private GameMapEditor editor;
+        private CameraHandler cameraHanlder;
+        private bool combineKey;
+        private KeyCode combineKeyCode;
 
         public ModData ModData
         {
@@ -52,7 +54,6 @@ namespace AMOFGameEngine.Map
                 return modData;
             }
         }
-
         public Scene PhysicsScene
         {
             get
@@ -60,7 +61,6 @@ namespace AMOFGameEngine.Map
                 return physicsScene;
             }
         }
-
         public NavmeshQuery NavmeshQuery
         {
             get
@@ -68,7 +68,6 @@ namespace AMOFGameEngine.Map
                 return null;
             }
         }
-
         public SceneManager SceneManager
         {
             get
@@ -76,13 +75,17 @@ namespace AMOFGameEngine.Map
                 return world.SceneManager;
             }
         }
-
         public Camera Camera
         {
             get
             {
                 return world.Camera;
             }
+        }
+        public Character PlayerAgent
+        {
+            get { return playerAgent; }
+            set { playerAgent = value; }
         }
 
         public event MapLoadhandler LoadMapStarted;
@@ -92,7 +95,6 @@ namespace AMOFGameEngine.Map
         {
             mapName = name;
             scriptLoader = new ScriptLoader();
-            mapTriggers = new List<ITrigger>();
             actorNodeList = new List<ActorNode>();
             this.world = world;
             scm = world.SceneManager;
@@ -100,9 +102,12 @@ namespace AMOFGameEngine.Map
             cam = world.Camera;
             physicsScene = world.PhysicsScene;
             physics = world.PhysicsScene.Physics;
+            controllerMgr = physics.ControllerManager;
             aimeshIndexData = new List<Mogre.Vector3>();
             aimeshVertexData = new List<Mogre.Vector3>();
             editor = new GameMapEditor(this);
+            cameraHanlder = new CameraHandler(this);
+            combineKey = false;
 
             GameManager.Instance.mouse.MouseMoved += Mouse_MouseMoved;
             GameManager.Instance.mouse.MousePressed += Mouse_MousePressed;
@@ -111,56 +116,184 @@ namespace AMOFGameEngine.Map
             GameManager.Instance.keyboard.KeyReleased += Keyboard_KeyReleased;
         }
 
-        private bool Keyboard_KeyReleased(KeyEvent arg)
+        public Item Produce(string desc, string meshName, ItemType type, ItemUseAttachOption attachOptionWhenUse, ItemHaveAttachOption attachOptionWhenHave, double damage, int range, GameWorld world, int ammoCapcity, double amourNum)
         {
-            ScreenManager.Instance.InjectKeyReleased(arg);
-            return true;
+            return ItemFactory.Instance.Produce(gameObjects.Count, desc, meshName, type, attachOptionWhenUse,
+                   attachOptionWhenHave, damage, range, world, ammoCapcity, amourNum);
+        }
+
+        public void CreateCharacter(string characterID, Mogre.Vector3 position, string teamId, bool isBot = true)
+        {
+            var findTrooperList = ModData.CharacterInfos.Where(o => o.ID == characterID);
+            if (findTrooperList.Count() == 0)
+            {
+                GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid trooper id!", LogMessage.LogType.Warning);
+                return;
+            }
+            var findTrooper = findTrooperList.First();
+
+            var findSkinList = ModData.SkinInfos.Where(o => o.skinID == findTrooper.SkinID);
+            if (findSkinList.Count() == 0)
+            {
+                GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid skin id!", LogMessage.LogType.Warning);
+                return;
+            }
+            var findSkin = findSkinList.First();
+
+            Character character = new Character(
+                world, agents.Count, teamId,
+                findTrooper.Name,
+                findTrooper.MeshName,
+                position, findSkin, isBot);
+            if (!isBot)
+            {
+                if (playerAgent != null)
+                {
+                    GameManager.Instance.log.LogMessage("TRY TO ASSIGN TROOPER AS PLAYER FAILED: There is already a trooper assigned!", LogMessage.LogType.Warning);
+                    return;
+                }
+                playerAgent = character;
+            }
+
+            gameObjects.Add(character);
+        }
+
+        public void CreateSceneProp(string meshName, Mogre.Vector3 position)
+        {
+            SceneProp sceneProp = new SceneProp(gameObjects.Count, world, meshName, position);
+            gameObjects.Add(sceneProp);
+        }
+
+        public void CreatePlane(string materialName, Mogre.Vector3 rkNormals, float consts, int width, int height, int xsegements, int ysegements, ushort numTexCoords, int uTile, int vTile, Mogre.Vector3 upVector, Mogre.Vector3 initPosition)
+        {
+            ScenePlane plane = new ScenePlane(gameObjects.Count, world, rkNormals, consts, materialName, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME,
+                width, height, xsegements, ysegements, true, numTexCoords, uTile, vTile, upVector, initPosition);
+            gameObjects.Add(plane);
         }
 
         private bool Keyboard_KeyPressed(KeyEvent arg)
         {
-            if (GameManager.Instance.EDIT_MODE)
+            switch (arg.key)
             {
-                if (ScreenManager.Instance.CheckScreenIsVisual("InnerGameEditor") &&
-                   (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_LSHIFT) &&
-                    GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_E)))
-                {
-                    ScreenManager.Instance.ExitCurrentScreen();
-                }
-                else if(GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_LSHIFT) &&
-                    GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_E))
-                {
-                    ScreenManager.Instance.ChangeScreen("InnerGameEditor", editor);
-                }
+                case KeyCode.KC_LCONTROL:
+                    if (combineKey && combineKeyCode == KeyCode.KC_LCONTROL)
+                    {
+                        break;
+                    }
+                    combineKey = true;
+                    combineKeyCode = arg.key;
+                    break;
+                case KeyCode.KC_E:
+                    if (!combineKey)
+                    {
+                        //Press `E` normally
+                        cameraHanlder.InjectKeyPressed(arg);
+                    }
+                    else if (!GameManager.Instance.IS_ENABLE_EDIT_MODE)
+                    {
+                        break;//Press `Ctrl+E` but EditMode is disabled
+                    }
+                    else
+                    {
+                        //EditMode
+                        ScreenManager.Instance.ChangeScreen("InnerGameEditor", editor);
+                    }
+                    break;
+                case KeyCode.KC_SPACE:
+                    if (!combineKey && combineKeyCode != KeyCode.KC_LCONTROL)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        GameManager.Instance.SetFullScreen();
+                    }
+                    break;
+                case KeyCode.KC_I:
+                    //Open Inventory Window
+                    if (playerAgent == null)
+                    {
+                        break;
+                    }
+                    ScreenManager.Instance.ChangeScreen("Inventory", playerAgent.MeshName, new string[]{
+                        playerAgent.GetIdleTopAnim(), playerAgent.GetIdleBaseAnim()
+                    });
+                    break;
+                default:
+                    if (playerAgent != null)
+                    {
+                        playerAgent.InjectKeyPressed(arg);
+                    }
+                    else
+                    {
+                        cameraHanlder.InjectKeyPressed(arg);
+                    }
+                    break;
             }
-            ScreenManager.Instance.InjectKeyPressed(arg);
             return true;
         }
 
-        private bool Mouse_MouseReleased(MouseEvent arg, MouseButtonID id)
+        public void RemoveGameObject(GameObject owner)
         {
-            ScreenManager.Instance.InjectMouseReleased(arg, id);
-            return true;
+            gameObjects.Remove(owner);
+            owner.Dispose();
         }
 
-        private bool Mouse_MousePressed(MouseEvent arg, MouseButtonID id)
+        private bool Keyboard_KeyReleased(KeyEvent arg)
         {
-            ScreenManager.Instance.InjectMousePressed(arg, id);
+            combineKey = false;
+            ScreenManager.Instance.InjectKeyReleased(arg);
+
+            if (playerAgent != null)
+            {
+                playerAgent.InjectKeyUp(arg);
+            }
+            else
+            {
+                cameraHanlder.InjectKeyReleased(arg);
+            }
             return true;
         }
 
         private bool Mouse_MouseMoved(MouseEvent arg)
         {
-            ScreenManager.Instance.InjectMouseMove(arg);
-            
-            Degree deCameraYaw = new Degree(arg.state.X.rel * -0.1f);
-            cam.Yaw(deCameraYaw);
-            Degree deCameraPitch = new Degree(arg.state.Y.rel * -0.1f);
-            cam.Pitch(deCameraPitch);
-
-            if (GameManager.Instance.EDIT_MODE)
+            if (ScreenManager.Instance.CheckEnterScreen(new Vector2(arg.state.X.abs, arg.state.Y.abs)))
             {
+                ScreenManager.Instance.InjectMouseMove(arg);
+            }
+            else if (playerAgent == null)
+            {
+                cameraHanlder.InjectMouseMove(arg);
+            }
+            else
+            {
+                playerAgent.InjectMouseMove(arg);
+            }
+            return true;
+        }
 
+        private bool Mouse_MouseReleased(MouseEvent arg, MouseButtonID id)
+        {
+            if (ScreenManager.Instance.CheckHasScreen())
+            {
+                ScreenManager.Instance.InjectMouseReleased(arg, id);
+            }
+            else
+            {
+                cameraHanlder.InjectMouseReleased(arg, id);
+            }
+            return true;
+        }
+
+        private bool Mouse_MousePressed(MouseEvent arg, MouseButtonID id)
+        {
+            if (ScreenManager.Instance.CheckHasScreen())
+            {
+                ScreenManager.Instance.InjectMousePressed(arg, id);
+            }
+            else
+            {
+                cameraHanlder.InjectMousePressed(arg, id);
             }
             return true;
         }
@@ -187,32 +320,12 @@ namespace AMOFGameEngine.Map
             if(LoadMapFinished!=null)
             {
                 agents = new List<Character>();
-                staticObjects = new List<GameObject>();
-                scriptLoader.Parse(System.IO.Path.GetFileNameWithoutExtension(mapName) + ".script", ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
+                gameObjects = new List<GameObject>();
+
+                scriptLoader.Parse(mapLoader.ScriptName, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
                 scriptLoader.Execute(world);
 
-                //MeshManager.Singleton.CreatePlane("floor", ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME,
-                //    new Plane(Mogre.Vector3.UNIT_Y, 0), 100, 100, 10, 10, true, 1, 10, 10, Mogre.Vector3.UNIT_Z);
-                //Entity floor = scm.CreateEntity("Floor", "floor");
-                //floor.SetMaterialName("Examples/Rockwall");
-                //floor.CastShadows = (false);
-                //scm.RootSceneNode.AttachObject(floor);
-                //ActorDesc actorDesc = new ActorDesc();
-                //actorDesc.Density = 4;
-                //actorDesc.Body = null;
-                //actorDesc.Shapes.Add(physics.CreateTriangleMesh(new
-                //    StaticMeshData(floor.GetMesh())));
-                //Actor floorActor = physicsScene.CreateActor(actorDesc);
-                //actorNodeList.Add(new ActorNode(scm.RootSceneNode, floorActor));
-                //
-                //Navmesh floorNavMesh = MeshToNavmesh.LoadNavmesh(floor);
-                //org.critterai.Vector3 pointStart = new org.critterai.Vector3(0, 0, 0);
-                //org.critterai.Vector3 pointEnd = new org.critterai.Vector3(0, 0, 0);
-                //org.critterai.Vector3 extents = new org.critterai.Vector3(2, 2, 2);
-
-                //NavStatus status = NavmeshQuery.Create(floorNavMesh, 100, out query);
-
-                playerAgent = null;
+                TriggerManager.Instance.Init(world, scriptLoader.currentContext);
 
                 aimesh = mapLoader.AIMesh;
                 editor.Initization(aimesh);
@@ -231,29 +344,27 @@ namespace AMOFGameEngine.Map
 
         public void Update(float timeSinceLastFrame)
         {
-            updateAgents(timeSinceLastFrame);
+            updateGameObjects(timeSinceLastFrame);
             updateMapCamera(timeSinceLastFrame);
             updatePhysics(timeSinceLastFrame);
         }
-        private void updateAgents(double timeSinceLastFrame)
+        private void updateGameObjects(double timeSinceLastFrame)
         {
-            if (agents == null)
+            if (gameObjects == null)
             {
                 return;
             }
-            for (int i = 0; i < agents.Count; i++)
+            for (int i = gameObjects.Count - 1; i >= 0; i--)
             {
-                agents[i].Update((float)timeSinceLastFrame);
+                gameObjects[i].Update((float)timeSinceLastFrame);
             }
         }
 
         private void updateMapCamera(float timeSinceLastFrame)
         {
-            moveOffset = new Mogre.Vector3(0, 0, 0);
-            if (GameManager.Instance.EDIT_MODE || playerAgent == null)
+            if (playerAgent == null)
             {
-                getInput();
-                moveCamera();
+                cameraHanlder.Update(timeSinceLastFrame);
             }
             else
             {
@@ -263,9 +374,13 @@ namespace AMOFGameEngine.Map
 
         private void updatePhysics(float timeSinceLastFrame)
         {
-            PhysicsScene.FlushStream();
-            PhysicsScene.FetchResults(SimulationStatuses.AllFinished, true);
+            while (!PhysicsScene.FetchResults(SimulationStatuses.AllFinished, false))
+            {
+ 
+            }
+
             PhysicsScene.Simulate(timeSinceLastFrame);
+            PhysicsScene.FlushStream();
         }
 
         public string GetName()
@@ -273,55 +388,32 @@ namespace AMOFGameEngine.Map
             return mapName;
         }
 
+        public GameObject GetObjectById(int objectId)
+        {
+            if (gameObjects.Count == 0)
+            {
+                return null;
+            }
+            if (objectId < 0 || objectId > gameObjects.Count - 1)
+            {
+                return null;
+            }
+            return gameObjects.ElementAt(objectId);
+        }
+
+        public Character GetAgentById(int agentId)
+        {
+            return (Character)gameObjects.ElementAt(agentId);
+        }
+
         public List<Character> GetAgents()
         {
             return agents;
         }
 
-        public List<GameObject> GetStaticObjects()
+        public List<GameObject> GetGameObjects()
         {
-            return staticObjects;
-        }
-
-        public void CreateCharacter(string characterID, Mogre.Vector3 position, string teamId, bool isBot = true)
-        {
-            var searchRet = ModData.CharacterInfos.Where(o => o.ID == characterID);
-            if (searchRet.Count() > 0)
-            {
-                Character character = new Character(
-                    world, cam, agents.Count, teamId, searchRet.First().Name + agents.Count, searchRet.First().MeshName, position, !isBot);
-                if (!isBot)
-                {
-                    playerAgent = character;
-                }
-                agents.Add(character);
-            }
-        }
-        private void getInput()
-        {
-            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_A))
-                moveOffset.x = -10;
-
-            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_D))
-                moveOffset.x = 10;
-
-            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_W))
-                moveOffset.z = -10;
-
-            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_S))
-                moveOffset.z = 10;
-
-            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_Q))
-                moveOffset.y = -10;
-
-            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_E))
-                moveOffset.y = 10;
-        }
-        private void moveCamera()
-        {
-            if (GameManager.Instance.keyboard.IsKeyDown(KeyCode.KC_LSHIFT))
-                cam.MoveRelative(moveOffset);
-            cam.MoveRelative(moveOffset / 10);
+            return gameObjects;
         }
     }
 }

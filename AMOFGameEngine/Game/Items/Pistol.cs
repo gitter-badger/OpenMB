@@ -9,15 +9,9 @@ namespace AMOFGameEngine.Game
 {
     class Pistol : Item
     {
-        private Camera cam;
-        private int id;
-        private Scene physicsScene;
-
-        public Pistol(Camera cam, Scene physicsScene, int id) : base(cam, physicsScene, id)
+        public Pistol(int id, string desc, string meshName, GameWorld world) :
+            base(id, desc, meshName, ItemType.IT_PISTOL, ItemHaveAttachOption.IHAO_BACK_FROM_LEFT_TO_RIGHT, ItemUseAttachOption.IAO_LEFT_HAND, world)
         {
-            this.cam = cam;
-            this.physicsScene = physicsScene;
-            this.id = id;
         }
     }
 }

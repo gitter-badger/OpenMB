@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using MOIS;
+using Mogre;
 
 namespace AMOFGameEngine.Screen
 {
     public class Screen : IScreen
     {
+        protected bool isExiting;
+
         public virtual bool IsVisible
         {
             get
@@ -26,9 +29,24 @@ namespace AMOFGameEngine.Screen
 
         public virtual event Action OnScreenExit;
 
+        public virtual bool CheckEnterScreen(Vector2 mousePos)
+        {
+            return false;
+        }
+
         public virtual void Exit()
         {
-            OnScreenExit?.Invoke();
+            if (isExiting)
+            {
+                return;
+            }
+
+            isExiting = true;
+
+            if (OnScreenExit!=null)
+            {
+                OnScreenExit();
+            }
         }
 
         public virtual void Hide()

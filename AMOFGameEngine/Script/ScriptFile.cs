@@ -14,11 +14,9 @@ namespace AMOFGameEngine.Script
         private Dictionary<string, Type> registeredCommand;
         public ScriptContext Context { get; set; }
         public string FileName { get; set; }
-        public Queue<IScriptCommand> ScriptCommands { get; set; }
         private RootScriptCommand root;
         public ScriptFile()
         {
-            ScriptCommands = new Queue<IScriptCommand>();
             Context = new ScriptContext();
             root = new RootScriptCommand();
 
@@ -90,7 +88,11 @@ namespace AMOFGameEngine.Script
                     continue;
                 }
             }
-            //Execute(runArgs);
+            var callScriptCommand = new CallScriptCommand();
+            callScriptCommand.Context = Context;
+            callScriptCommand.ParentCommand = root;
+            callScriptCommand.PushArg("map_loaded", 0);
+            root.SubCommands.Add(callScriptCommand);
         }
     }
 }

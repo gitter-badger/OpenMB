@@ -68,15 +68,19 @@ namespace AMOFGameEngine.Game
             }
         }
 
+        public GameObject GetObjectById(int id)
+        {
+            return Map.GetObjectById(id);
+        }
+
         public Character GetAgentById(int id)
         {
-            return GetCurrentMap().GetAgents().ElementAt(id);
+            return Map.GetAgentById(id);
         }
 
         public Item GetItemByXml(ModItemDfnXML itemXml)
         {
-            Item itm = new Item(itemXml.Name, itemXml.MeshName, itemXml.Type, physicsScene, cam);
-            return itm;
+            return ItemFactory.Instance.Produce(itemXml, this);
         }
 
         public ModData ModData
@@ -120,7 +124,16 @@ namespace AMOFGameEngine.Game
             globalVarMap.Add("reg4", "0");
             globalValueTable = ScriptValueRegister.Instance.GlobalValueTable;
 
-            TriggerManager.Instance.Triggers.Add(new GameTrigger(this));
+            /*Physx Debugger*/
+            if (physics.RemoteDebugger.IsConnected)
+            {
+                physics.RemoteDebugger.Connect("127.0.0.1", 5425);
+            }
+            else
+            {
+                physics.RemoteDebugger.Disconnect();
+                physics.RemoteDebugger.Connect("127.0.0.1", 5425);
+            }
         }
         #endregion
 
@@ -159,6 +172,7 @@ namespace AMOFGameEngine.Game
 
             GameManager.Instance.root.FrameRenderingQueued += FrameRenderingQueued;
 
+            ScreenManager.Instance.Camera = cam;
         }
 
         public void ChangeScene(string sceneName)
@@ -183,36 +197,28 @@ namespace AMOFGameEngine.Game
             GameManager.Instance.root.FrameRenderingQueued -= FrameRenderingQueued;
         }
 
-        public void QueueAction(Activity action)
-        {
-            queuedActions.Enqueue(action);
-        }
-
         public void Update(double timeSinceLastFrame)
         {
             TriggerManager.Instance.Update((float)timeSinceLastFrame);
-            while (queuedActions.Count > 0)
-            {
-                Activity action = queuedActions.Peek();
-                action.Update((float)timeSinceLastFrame);
-                if (action.State != ActionState.Queued)
-                {
-                    queuedActions.Dequeue();
-                }
-            }
         }
 
         #endregion
 
         #region API
-        public GameMap GetCurrentMap()
+        public GameMap Map
         {
-            return GameMapManager.Instance.GetCurrentMap();
+            get
+            {
+                return GameMapManager.Instance.GetCurrentMap();
+            }
         }
 
-        public string GetCurrentScene()
+        public string MapName
         {
-            return GameMapManager.Instance.GetCurrentMapName();
+            get
+            {
+                return Map.GetName();
+            }
         }
         #endregion
 
@@ -249,6 +255,11 @@ namespace AMOFGameEngine.Game
             GameManager.Instance.trayMgr.destroyAllWidgets();
             pbProgressBar = GameManager.Instance.trayMgr.createProgressBar(TrayLocation.TL_CENTER, "pbProcessBar", "Loading", 500, 300);
             pbProgressBar.setComment(text);
+        }
+
+        public void RemoveGameObject(GameObject owner)
+        {
+            Map.RemoveGameObject(owner);
         }
 
         private bool FrameRenderingQueued(FrameEvent evt)
@@ -334,6 +345,16 @@ namespace AMOFGameEngine.Game
         {
             GameMapManager.Instance.GetCurrentMap().CreateCharacter(characterID, position, teamId, isBot);
         }
+
+        public void CreateSceneProp(string meshName, Mogre.Vector3 position)
+        {
+            GameMapManager.Instance.GetCurrentMap().CreateSceneProp(meshName, position);
+        }
+
+        public void CreatePlane(string materialName, Mogre.Vector3 vector31, float v1, int v2, int v3, int v4, int v5, ushort v6, int v7, int v8, Mogre.Vector3 vector32, Mogre.Vector3 vector33)
+        {
+            GameMapManager.Instance.GetCurrentMap().CreatePlane(materialName, vector31, v1, v2, v3, v4, v5, v6, v7, v8, vector32, vector33);
+        }
         #endregion
 
         #region Handle Input
@@ -343,13 +364,6 @@ namespace AMOFGameEngine.Game
         }
         bool mKeyboard_KeyPressed(MOIS.KeyEvent arg)
         {
-            switch(arg.key)
-            {
-                case KeyCode.KC_I:
-                    //Open Inventory Window
-                    ScreenManager.Instance.ChangeScreen("Inventory");
-                    break;
-            }
             return true;
         }
         bool mMouse_MouseReleased(MOIS.MouseEvent arg, MOIS.MouseButtonID id)

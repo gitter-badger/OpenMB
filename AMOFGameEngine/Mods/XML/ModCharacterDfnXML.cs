@@ -22,5 +22,7 @@ namespace AMOFGameEngine.Mods.XML
         public string Name { get; set; }
         [XmlElement("MeshName")]
         public string MeshName { get; set; }
+        [XmlElement("SkinID")]
+        public string SkinID { get; set; }
     }
 }
