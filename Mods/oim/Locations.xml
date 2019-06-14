@@ -1,0 +1,10 @@
+<Locations>
+	<Location>
+		<ID>LOT_Zender</ID>
+		<Name>Zender</Name>
+		<Mesh>icon_castle</Mesh>
+		<Position X="0" Y="0" />
+		<Flags>
+		</Flags>
+	</Location>
+</Locations>

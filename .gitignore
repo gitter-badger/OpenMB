@@ -8,7 +8,6 @@ Debug/*
 *.manifest
 *.log
 *.suo
-*.config
 *.cache
 *.Cache
 *.FileListAbsolute.txt
@@ -24,3 +23,13 @@ Debug/*
 *.obj
 *.resources
 *.ilk
+
+*.brf
+*.dds
+*.tga
+*.ogg
+*.wav
+*.mp3
+*.flac
+*.fxo
+*.pp
