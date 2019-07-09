@@ -4,18 +4,22 @@
     <Description>Mount Blade With Fire and Sword</Description>
     <Version>1.143</Version>
     <Thumb>Sample_Thumb.png</Thumb>
+	<Assembly>OpenMB.Mods.OIM</Assembly>
   </Info>
   <Data>
     <Characters>Characters.xml</Characters>
-    <Music>Music.xml</Music>
-    <Sound>Sound.xml</Sound>
     <Items>Items.xml</Items>
-    <Sides>Side.xml</Sides>
-    <Skin>Skin.xml</Skin>
-    <Maps>Maps.xml</Maps>
-    <WorldMaps>WorldMaps.xml</WorldMaps>
+    <ItemTypes>ItemTypes.xml</ItemTypes>
     <Locations>Locations.xml</Locations>
+    <Maps>Maps.xml</Maps>
+    <Models></Models>
+    <Music>Music.xml</Music>
+    <SceneProps>SceneProps.xml</SceneProps>
     <Skeletons>Skeletons.xml</Skeletons>
+    <Skin>Skin.xml</Skin>
+    <Sides>Side.xml</Sides>
+    <Sound>Sound.xml</Sound>
+    <WorldMaps>WorldMaps.xml</WorldMaps>
 	<DataDir>
 		<MapDir>Scenes</MapDir>
 		<MusicDir>Music</MusicDir>
@@ -31,6 +35,8 @@
     <MediaSection Type="FileSystem">Sound</MediaSection>
     <MediaSection Type="FileSystem">Scenes</MediaSection>
   </Media>
+  <Settings>
+  </Settings>
   <Startup>
   </Startup>
 </Module>

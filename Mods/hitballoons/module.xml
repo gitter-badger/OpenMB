@@ -1,0 +1,45 @@
+<Module>
+  <Info>
+    <Name>Hit the balloons</Name>
+    <Description>Destroy the ballons as many as possible!</Description>
+    <Version>1.0</Version>
+    <Thumb>main.png</Thumb>
+	<Assembly>OpenMB.Mods.HitBalloons.dll</Assembly>
+  </Info>
+  <Data>
+    <Characters>Characters.xml</Characters>
+    <Items>Items.xml</Items>
+    <ItemTypes>ItemTypes.xml</ItemTypes>
+    <Locations>Locations.xml</Locations>
+    <Maps>Maps.xml</Maps>
+    <Models>Models.xml</Models>
+    <Music>Music.xml</Music>
+    <SceneProps>SceneProps.xml</SceneProps>
+    <Skeletons>Skeletons.xml</Skeletons>
+    <Skin>Skin.xml</Skin>
+    <Sides>Side.xml</Sides>
+    <Sound>Sound.xml</Sound>
+    <WorldMaps>WorldMaps.xml</WorldMaps>
+	<DataDir>
+		<MapDir>Scenes</MapDir>
+		<MusicDir>Music</MusicDir>
+		<ScriptDir>Scripts</ScriptDir>
+	</DataDir>
+  </Data>
+  <Media>
+    <MediaSection Type="FileSystem">Media/Resources</MediaSection>
+    <MediaSection Type="FileSystem">Media/Materials</MediaSection>
+    <MediaSection Type="FileSystem">Media/Textures</MediaSection>
+    <MediaSection Type="FileSystem">Media/Overlay</MediaSection>
+    <MediaSection Type="FileSystem">Scripts</MediaSection>
+    <MediaSection Type="FileSystem">Music</MediaSection>
+    <MediaSection Type="FileSystem">Sound</MediaSection>
+    <MediaSection Type="FileSystem">Scenes</MediaSection>
+  </Media>
+  <Settings>
+	<Setting Name="HasMultiplayer">False</Setting>
+	<Setting Name="HasSavedGame">False</Setting>
+  </Settings>
+  <Startup>
+  </Startup>
+</Module>

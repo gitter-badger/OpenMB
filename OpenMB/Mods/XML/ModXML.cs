@@ -12,13 +12,13 @@ namespace OpenMB.Mods.XML
         [XmlElement("Info")]
         public ModInfoXML ModInfo{ get; set;}
 
-        [XmlElement("Assembly")]
-        public string Assembly { get; set; }
-
         [XmlElement("Data")]
         public ModDataXML Data { get; set; }
 
         [XmlElement("Media")]
         public ModMediaXml Media { get; set; }
+
+        [XmlElement("Settings")]
+        public ModSettingsDfnXml Settings { get; set; }
     }
 }

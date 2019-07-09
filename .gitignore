@@ -4,6 +4,7 @@ Debug/*
 */obj/*
 *.pdb
 *.exe
+*.exe.config
 *.vshost.exe
 *.manifest
 *.log
@@ -23,6 +24,8 @@ Debug/*
 *.obj
 *.resources
 *.ilk
+OpenMB.Mods.*.dll
+Mods/*/OpenMB.Mods.*.dll
 
 *.brf
 *.dds

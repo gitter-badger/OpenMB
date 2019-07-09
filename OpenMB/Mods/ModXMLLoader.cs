@@ -24,13 +24,36 @@ namespace OpenMB.Mods
             try
             {
                 XmlSerializer xr = new XmlSerializer(typeof(T));
-                ModXMLData = (T)xr.Deserialize(new FileStream(modPath, FileMode.Open, FileAccess.Read));
+                FileStream stream = new FileStream(modPath, FileMode.Open, FileAccess.Read);
+                ModXMLData = (T)xr.Deserialize(stream);
+                stream.Close();
                 return true;
             }
             catch(Exception ex)
             {
                 GameManager.Instance.log.LogMessage(ex.ToString(), LogMessage.LogType.Error);
                 ModXMLData = default(T);
+                return false;
+            }
+        }
+
+        public bool Save<T>(T xmlData)
+        {
+            try
+            {
+                XmlSerializer xr = new XmlSerializer(typeof(T));
+                if (File.Exists(modPath))
+                {
+                    File.Delete(modPath);
+                }
+                FileStream stream = new FileStream(modPath, FileMode.OpenOrCreate, FileAccess.Write);
+                xr.Serialize(stream, xmlData);
+                stream.Close();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                GameManager.Instance.log.LogMessage(ex.ToString(), LogMessage.LogType.Error);
                 return false;
             }
         }

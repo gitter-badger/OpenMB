@@ -12,6 +12,7 @@ namespace OpenMB.Mods
         public readonly string AssemblyName;
         public readonly ModDataInfo Data;
         public readonly ModMediaXml Media;
+        public readonly List<ModSettingDfnXml> Settings;
         public readonly string InstalledPath;
 
         public ModManifest(string path)
@@ -27,23 +28,27 @@ namespace OpenMB.Mods
                                            xmldata.ModInfo.Description,
                                            xmldata.ModInfo.Version,
                                            xmldata.ModInfo.Thumb,
-                                           xmldata.ModInfo.Movie);
-                AssemblyName = xmldata.Assembly;
+                                           xmldata.ModInfo.Movie,
+                                           xmldata.ModInfo.Assembly);
                 Data = new ModDataInfo(xmldata.Data.characterXML,
                                         xmldata.Data.soundXML,
                                         xmldata.Data.musicXML,
                                         xmldata.Data.itemXML,
+                                        xmldata.Data.itemTypeXML,
                                         xmldata.Data.sideXML,
                                         xmldata.Data.skinXML,
                                         xmldata.Data.mapsXml,
                                         xmldata.Data.worldMapsXML,
                                         xmldata.Data.locationsXML,
                                         xmldata.Data.skeletonsXML,
+                                        xmldata.Data.modelsXml,
+                                        xmldata.Data.scenePropsXML,
                                         xmldata.Data.DataDir.MapDir,
                                         xmldata.Data.DataDir.MusicDir,
                                         xmldata.Data.DataDir.ScriptDir);
-
                 Media = xmldata.Media;
+
+                Settings = xmldata.Settings.Settings;
             }
         }
     }

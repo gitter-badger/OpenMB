@@ -129,5 +129,58 @@ namespace OpenMB.Connector
 
             return mo.ConvertToMesh(brfMesh.Name + "-" + Guid.NewGuid().ToString());
         }
+
+        public MeshPtr LoadWorldMap(string worldMapID, SceneManager sceneManager, MBWorldMap worldMap)
+        {
+            //Convert Vertex and Faces to Ogre Mesh Format
+            if (worldMap == null)
+            {
+                return null;
+            }
+            if (meshes.ContainsKey(worldMapID))
+            {
+                return meshes[worldMapID];
+            }
+            ManualObject mo = sceneManager.CreateManualObject("WORLDMAP-MANUAL-OBJECT-" + worldMapID);
+            mo.Begin("");
+
+            for (int i = 0; i < worldMap.Faces.Count; i++)
+            {
+                mo.Colour(worldMap.Color[worldMap.Faces[i].TerrainType]);
+
+                for (int j = 0; j < 3; j++)
+                {
+                    int vindex = -1;
+                    if (j == 0)
+                    {
+                        vindex = worldMap.Faces[i].indexFirst;
+                    }
+                    else if (j == 1)
+                    {
+                        vindex = worldMap.Faces[i].indexSecond;
+                    }
+                    else if (j == 2)
+                    {
+                        vindex = worldMap.Faces[i].indexThird;
+                    }
+                    mo.Position(
+                        worldMap.Vertics[vindex].x,
+                        worldMap.Vertics[vindex].z,
+                        worldMap.Vertics[vindex].y
+                    );
+                }
+                mo.Triangle(
+                    (uint)(worldMap.Faces[i].indexFirst),
+                    (uint)(worldMap.Faces[i].indexSecond),
+                    (uint)(worldMap.Faces[i].indexThird)
+                );
+            }
+
+            mo.End();
+
+            var mesh = mo.ConvertToMesh("WORLDMAP-" + worldMapID);
+            meshes.Add(worldMapID, mesh);
+            return mesh;
+        }
     }
 }

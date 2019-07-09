@@ -16,6 +16,8 @@ namespace OpenMB.Mods.XML
         public string soundXML { get; set; }
         [XmlElement("Items")]
         public string itemXML { get; set; }
+        [XmlElement("ItemTypes")]
+        public string itemTypeXML { get; set; }
         [XmlElement("Sides")]
         public string sideXML { get; set; }
         [XmlElement("Skin")]
@@ -28,6 +30,10 @@ namespace OpenMB.Mods.XML
         public string locationsXML { get; set; }
         [XmlElement("Skeletons")]
         public string skeletonsXML { get; set; }
+        [XmlElement("SceneProps")]
+        public string scenePropsXML { get; set; }
+        [XmlElement("Models")]
+        public string modelsXml { get; set; }
         [XmlElement]
         public ModDataDirXML DataDir { get; set; }
     }

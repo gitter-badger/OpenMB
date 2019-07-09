@@ -8,6 +8,7 @@ namespace OpenMB.Script
 {
     public class ScriptContext
     {
+        private ScriptLinkTable localTable;
         private Dictionary<string, string> localValMap;
         private Dictionary<string, ScriptFunction> functions;
         private Dictionary<string, ScriptTrigger> triggers;
@@ -19,9 +20,19 @@ namespace OpenMB.Script
                 return file;
             }
         }
+
+        public ScriptLinkTable LocalTable
+        {
+            get
+            {
+                return localTable;
+            }
+        }
+
         public ScriptContext(ScriptFile file)
         {
             this.file = file;
+            localTable = new ScriptLinkTable();
             localValMap = new Dictionary<string, string>();
             functions = new Dictionary<string, ScriptFunction>();
             triggers = new Dictionary<string, ScriptTrigger>();
@@ -93,6 +104,7 @@ namespace OpenMB.Script
 
         public void RegisterTrigger(
             string name, 
+            string triggerCondition,
             float delayTime,
             float frozenTime,
             List<IScriptCommand> executeContent)
