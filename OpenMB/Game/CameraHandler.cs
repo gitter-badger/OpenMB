@@ -15,6 +15,7 @@ namespace OpenMB.Game
         Free,//Free Movement
         Follow,//Follow a Character
         Manual,//Manual control
+		WorldMap,//World map movement
     }
     public class CameraHandler
     {
@@ -60,7 +61,7 @@ namespace OpenMB.Game
                 {
                     currentAgentId = 0;
                 }
-                else if (currentAgentId != map.GetAgents().Count - 1)
+                else if (currentAgentId != map.Agents.Count - 1)
                 {
                     currentAgentId++;
                 }
@@ -148,8 +149,8 @@ namespace OpenMB.Game
 
         public void Update(float timeSinceLastFrame)
         {
-            if ((map.GetAgents() == null ||
-                map.GetAgents().Count == 0) &&
+            if ((map.Agents == null ||
+                map.Agents.Count == 0) &&
                 cameraMode != CameraMode.Manual)
             {
                 cameraMode = CameraMode.Free;

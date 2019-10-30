@@ -31,7 +31,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 
-namespace AdvancedMogreFramework.Widgets
+namespace OpenMB.Widgets
 {
     public class StaticText : Widget
     {
@@ -61,17 +61,17 @@ namespace AdvancedMogreFramework.Widgets
                 mTextArea.Colour = color;
             }
             ((OverlayContainer)mElement).AddChild(mTextArea);
-            setCaption(caption);
+            SetText(caption);
         }
 
-        public string getCaption()
+        public string GetText()
         {
             return mTextArea.Caption;
         }
 
-        public void setCaption(string caption)
+        public void SetText(string text)
         {
-            mTextArea.Caption = caption;
+            mTextArea.Caption = text;
         }
 
         public override void _cursorPressed(Mogre.Vector2 cursorPos)

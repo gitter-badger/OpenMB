@@ -5,8 +5,11 @@ using System.Text;
 using Mogre;
 using OpenMB.Widgets;
 
-namespace OpenMB.Output
+namespace OpenMB.Core
 {
+	/// <summary>
+	/// Output message
+	/// </summary>
     public class OutputManager
     {
         private OverlayContainer container;
@@ -14,6 +17,7 @@ namespace OpenMB.Output
         private StringVector buffer;
         private List<OverlayElement> textElements;
         private float alphaSinceLastFrame;
+		private int delay = 20;
 
         private static OutputManager instance;
         public static OutputManager Instance
@@ -88,13 +92,21 @@ namespace OpenMB.Output
                 alphaSinceLastFrame = itr.Colour.a;
                 if (alphaSinceLastFrame > 0.0f)
                 {
-                    alphaSinceLastFrame -= 0.01f;
-                    ColourValue cv = new ColourValue(
-                           itr.Colour.r,
-                           itr.Colour.g,
-                           itr.Colour.b,
-                           float.Parse(alphaSinceLastFrame.ToString("0.00")));
-                    itr.Colour = cv;
+					if (delay > 0)
+					{
+						delay--;
+					}
+					else
+					{
+						alphaSinceLastFrame -= 0.01f;
+						delay = 20;
+						ColourValue cv = new ColourValue(
+							   itr.Colour.r,
+							   itr.Colour.g,
+							   itr.Colour.b,
+							   float.Parse(alphaSinceLastFrame.ToString("0.00")));
+						itr.Colour = cv;
+					}
                 }
                 if (alphaSinceLastFrame == 0.0f)
                 {

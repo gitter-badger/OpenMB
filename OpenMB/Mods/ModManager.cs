@@ -1,21 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.IO;
 using System.Reflection;
 using System.ComponentModel;
+using Mogre;
+using OpenMB.Game.ItemTypes;
 using OpenMB.Configure;
+using OpenMB.Localization;
+using OpenMB.Map;
+using OpenMB.Mods.XML;
+using OpenMB.Script;
+using OpenMB.Script.Command;
+using OpenMB.Screen;
 
 namespace OpenMB.Mods
 {
-    using Game.ItemTypes;
-    using Mogre;
-    using Script;
-    using Script.Command;
-    using XML;
     using Mods = Dictionary<string, ModManifest>;
-
     public class ModManager
     {
         private Dictionary<string, ModManifest> installedMods;
@@ -71,19 +72,13 @@ namespace OpenMB.Mods
 
         void worker_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
-            if (LoadingModProcessing != null)
-            {
-                LoadingModProcessing(e.ProgressPercentage);
-            }
+            LoadingModProcessing?.Invoke(e.ProgressPercentage);
         }
 
         void worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
             worker.Dispose();
-            if (LoadingModFinished != null)
-            {
-                LoadingModFinished();
-            }
+            LoadingModFinished?.Invoke();
         }
 
         void worker_DoWork(object sender, DoWorkEventArgs e)
@@ -104,8 +99,8 @@ namespace OpenMB.Mods
                 if (!string.IsNullOrEmpty(manifest.Data.Characters))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Characters);
-                    XML.ModCharactersDfnXML characterDfn;
-                    loader.Load<XML.ModCharactersDfnXML>(out characterDfn);
+                    ModCharactersDfnXML characterDfn;
+                    loader.Load(out characterDfn);
                     currentMod.CharacterInfos = characterDfn.CharacterDfns;
                     worker.ReportProgress(50);
                 }
@@ -113,8 +108,8 @@ namespace OpenMB.Mods
                 if (!string.IsNullOrEmpty(manifest.Data.ItemTypes))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.ItemTypes);
-                    XML.ModItemTypesDfnXml itemTypesDfn;
-                    loader.Load<XML.ModItemTypesDfnXml>(out itemTypesDfn);
+                    ModItemTypesDfnXml itemTypesDfn;
+                    loader.Load(out itemTypesDfn);
                     currentMod.ItemTypeInfos = itemTypesDfn != null ? itemTypesDfn.ItemTypes : null;
                     worker.ReportProgress(75);
                 }
@@ -122,31 +117,17 @@ namespace OpenMB.Mods
                 if (!string.IsNullOrEmpty(manifest.Data.Items))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Items);
-                    XML.ModItemsDfnXML itemDfn;
-                    loader.Load<XML.ModItemsDfnXML>(out itemDfn);
+                    ModItemsDfnXML itemDfn;
+                    loader.Load(out itemDfn);
                     currentMod.ItemInfos = itemDfn != null ? itemDfn.Items : null;
                     worker.ReportProgress(75);
-
-                    for (int j = itemDfn.Items.Count - 1; j >= 0; j--)
-                    {
-                        if (!ValidItemType(currentMod, itemDfn.Items[j].Type))
-                        {
-                            string itemType = itemDfn.Items[j].Type;
-                            string itemID = itemDfn.Items[j].ID;
-                            itemDfn.Items.Remove(itemDfn.Items[j]);
-                            GameManager.Instance.log.LogMessage(
-                                string.Format("Unrecognized Item Type `{0}` in Item `{1}`", itemType, itemID),
-                                LogMessage.LogType.Error
-                            );
-                        }
-                    }
                 }
 
                 if (!string.IsNullOrEmpty(manifest.Data.Sides))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Sides);
-                    XML.ModSidesDfnXML sideDfn;
-                    loader.Load<XML.ModSidesDfnXML>(out sideDfn);
+                    ModSidesDfnXML sideDfn;
+                    loader.Load(out sideDfn);
                     currentMod.SideInfos = sideDfn.Sides;
                     worker.ReportProgress(80);
                 }
@@ -154,31 +135,31 @@ namespace OpenMB.Mods
                 if (!string.IsNullOrEmpty(manifest.Data.Skin))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Skin);
-                    XML.ModSkinDfnXML skinDfn;
-                    loader.Load<XML.ModSkinDfnXML>(out skinDfn);
+                    ModSkinDfnXML skinDfn;
+                    loader.Load(out skinDfn);
                     currentMod.SkinInfos = skinDfn.CharacterSkinList;
                 }
 
                 if (!string.IsNullOrEmpty(manifest.Data.Music))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Music);
-                    XML.ModTracksDfnXML trackDfn;
-                    loader.Load<XML.ModTracksDfnXML>(out trackDfn);
+                    ModTracksDfnXML trackDfn;
+                    loader.Load(out trackDfn);
                     currentMod.MusicInfos = trackDfn.Tracks;
                 }
 
                 if (!string.IsNullOrEmpty(manifest.Data.Sound))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Sound);
-                    XML.ModSoundsDfnXML soundDfn;
-                    loader.Load<XML.ModSoundsDfnXML>(out soundDfn);
+                    ModSoundsDfnXML soundDfn;
+                    loader.Load(out soundDfn);
                     currentMod.SoundInfos = soundDfn.Sounds;
                 }
 
                 if (!string.IsNullOrEmpty(manifest.Data.Maps))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Maps);
-                    XML.ModMapsDfnXml mapsDfn;
+                    ModMapsDfnXml mapsDfn;
                     loader.Load<XML.ModMapsDfnXml>(out mapsDfn);
                     currentMod.MapInfos = mapsDfn.Maps;
                 }
@@ -186,8 +167,8 @@ namespace OpenMB.Mods
                 if (!string.IsNullOrEmpty(manifest.Data.WorldMaps))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.WorldMaps);
-                    XML.ModWorldMapsDfnXml worldMapsDfn;
-                    loader.Load<XML.ModWorldMapsDfnXml>(out worldMapsDfn);
+                    ModWorldMapsDfnXml worldMapsDfn;
+                    loader.Load(out worldMapsDfn);
                     currentMod.WorldMapInfos = worldMapsDfn.WorldMaps;
                 }
 
@@ -202,30 +183,38 @@ namespace OpenMB.Mods
                 if (!string.IsNullOrEmpty(manifest.Data.Skeletons))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Skeletons);
-                    XML.ModSkeletonsDfnXML skeletonsDfn;
-                    loader.Load<XML.ModSkeletonsDfnXML>(out skeletonsDfn);
+                    ModSkeletonsDfnXML skeletonsDfn;
+                    loader.Load(out skeletonsDfn);
                     currentMod.SkeletonInfos = skeletonsDfn.Skeletons;
                 }
                 
                 if (!string.IsNullOrEmpty(manifest.Data.SceneProps))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.SceneProps);
-                    XML.ModScenePropsDfnXml scenePropsDfnXml;
-                    loader.Load<XML.ModScenePropsDfnXml>(out scenePropsDfnXml);
+                    ModScenePropsDfnXml scenePropsDfnXml;
+                    loader.Load(out scenePropsDfnXml);
                     currentMod.SceneProps = scenePropsDfnXml.SceneProps;
                 }
 
                 if (!string.IsNullOrEmpty(manifest.Data.Models))
                 {
                     loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Models);
-                    XML.ModModelsDfnXml modelsDfnXml;
-                    loader.Load<XML.ModModelsDfnXml>(out modelsDfnXml);
+                    ModModelsDfnXml modelsDfnXml;
+                    loader.Load(out modelsDfnXml);
                     currentMod.Models = modelsDfnXml.Models;
-                }
+				}
 
-                //--------------------------------Load Types-------------------------
-                //Load Internal types
-                Assembly thisAssembly = GetType().Assembly;
+				if (!string.IsNullOrEmpty(manifest.Data.Menus))
+				{
+					loader = new ModXmlLoader(manifest.InstalledPath + "/" + manifest.Data.Menus);
+					ModMenusDfnXml menusDfnXml;
+					loader.Load(out menusDfnXml);
+					currentMod.MenuInfos = menusDfnXml.Menus;
+				}
+
+				//--------------------------------Load Types-------------------------
+				//Load Internal types
+				Assembly thisAssembly = GetType().Assembly;
                 Type[] internalTypes = thisAssembly.GetTypes();
                 foreach (var internalType in internalTypes)
                 {
@@ -250,57 +239,145 @@ namespace OpenMB.Mods
                         var instance = thisAssembly.CreateInstance(internalType.FullName) as IModTriggerCondition;
                         currentMod.ModTriggerConditions.Add(instance);
                     }
+                    else if (internalType.GetInterface("IGameMapLoader") != null)
+                    {
+                        var instance = thisAssembly.CreateInstance(internalType.FullName) as IGameMapLoader;
+                        currentMod.MapLoaders.Add(instance);
+                    }
                 }
 
                 //Load Customized type from the assembly
-                if (!string.IsNullOrEmpty(manifest.MetaData.Assembly) &&
-                    File.Exists(manifest.InstalledPath + "\\" + manifest.MetaData.Assembly))
+                for (int i = 0; i < manifest.MetaData.Assemblies.Count; i++)
                 {
-                    try
+                    string assemblyXml = manifest.MetaData.Assemblies[i];
+                    bool isCurrentMod;
+                    string assemblyPath = getAssemblyRealPath(assemblyXml, out isCurrentMod);
+                    if (string.IsNullOrEmpty(assemblyPath))
                     {
-                        Assembly assembly = Assembly.LoadFile(manifest.InstalledPath + "\\" + manifest.MetaData.Assembly);
-                        Type[] types = assembly.GetTypes();
-                        foreach (var type in types)
+                        continue;
+                    }
+                    if(isCurrentMod)
+                    {
+                        assemblyPath = manifest.InstalledPath + "\\" + assemblyPath;
+                    }
+                    if (File.Exists(assemblyPath))
+                    {
+                        try
                         {
-                            if (type.GetInterface("IScriptCommand") != null)//avaiable customized script command
+                            Assembly assemblyDll = Assembly.LoadFile(assemblyPath);
+                            Type[] types = assemblyDll.GetTypes();
+                            foreach (var type in types)
                             {
-                                var instance = assembly.CreateInstance(type.FullName) as ScriptCommand;
-                                ScriptCommandRegister.Instance.RegisterNewCommand(instance.CommandName, type); //register this command
-                            }
-                            else if (type.GetInterface("IModSetting")!=null)
-                            {
-                                var instance = assembly.CreateInstance(type.FullName) as IModSetting;
-                                var findedSettingInMod = manifest.Settings.Where(o => o.Name == instance.Name);
-                                if (findedSettingInMod.Count() > 0)
+                                if (type.GetInterface("IScriptCommand") != null)//avaiable customized script command
                                 {
-                                    instance.Value = findedSettingInMod.ElementAt(0).Value;
-                                    instance.Load(currentMod);
+                                    var instance = assemblyDll.CreateInstance(type.FullName) as ScriptCommand;
+                                    ScriptCommandRegister.Instance.RegisterNewCommand(instance.CommandName, type); //register this command
                                 }
-                                currentMod.ModSettings.Add(instance);
-                            }
-                            else if (type.GetInterface("IModModelType") != null)
-                            {
-                                var instance = assembly.CreateInstance(type.FullName) as IModModelType;
-                                currentMod.ModModelTypes.Add(instance);
-                            }
-                            else if (type.GetInterface("IModTriggerCondition") != null)
-                            {
-                                var instance = thisAssembly.CreateInstance(type.FullName) as IModTriggerCondition;
-                                currentMod.ModTriggerConditions.Add(instance);
-                            }
-                            else if (type.GetInterface("IItemType") != null)
-                            {
-                                var instance = thisAssembly.CreateInstance(type.FullName) as IItemType;
-                                currentMod.ItemTypes.Add(instance);
+                                else if (type.GetInterface("IModSetting") != null)
+                                {
+                                    var instance = assemblyDll.CreateInstance(type.FullName) as IModSetting;
+                                    var findedSettingInMod = manifest.Settings.Where(o => o.Name == instance.Name);
+                                    if (findedSettingInMod.Count() > 0)
+                                    {
+                                        instance.Value = findedSettingInMod.ElementAt(0).Value;
+                                        instance.Load(currentMod);
+                                    }
+                                    currentMod.ModSettings.Add(instance);
+                                }
+                                else if (type.GetInterface("IModModelType") != null)
+                                {
+                                    var instance = assemblyDll.CreateInstance(type.FullName) as IModModelType;
+                                    currentMod.ModModelTypes.Add(instance);
+                                }
+                                else if (type.GetInterface("IModTriggerCondition") != null)
+                                {
+                                    var instance = assemblyDll.CreateInstance(type.FullName) as IModTriggerCondition;
+                                    currentMod.ModTriggerConditions.Add(instance);
+                                }
+                                else if (type.GetInterface("IItemType") != null)
+                                {
+                                    var instance = assemblyDll.CreateInstance(type.FullName) as IItemType;
+                                    currentMod.ItemTypes.Add(instance);
+                                }
+                                else if (type.GetInterface("IGameMapLoader") != null)
+                                {
+                                    var instance = assemblyDll.CreateInstance(type.FullName) as IGameMapLoader;
+                                    currentMod.MapLoaders.Add(instance);
+                                }
                             }
                         }
+                        catch (Exception ex)
+                        {
+                            GameManager.Instance.log.LogMessage("Error Loading Assembly, Details: " + ex.ToString(), LogMessage.LogType.Error);
+                        }
                     }
-                    catch(Exception ex)
+                    else
                     {
-                        GameManager.Instance.log.LogMessage("Error Loading Assembly, Details: " + ex.ToString(), LogMessage.LogType.Error);
+                        GameManager.Instance.log.LogMessage("Requested Assembly Path don't exist!", LogMessage.LogType.Error);
                     }
                 }
                 //--------------------------------------------
+
+                //Valid Item Type
+                for (int j = currentMod.ItemInfos.Count - 1; j >= 0; j--)
+                {
+                    if (!validItemType(currentMod, currentMod.ItemInfos[j].Type))
+                    {
+                        string itemType = currentMod.ItemInfos[j].Type;
+                        string itemID = currentMod.ItemInfos[j].ID;
+                        currentMod.ItemInfos.Remove(currentMod.ItemInfos[j]);
+                        GameManager.Instance.log.LogMessage(
+                            string.Format("Unrecognized Item Type `{0}` in Item `{1}`", itemType, itemID),
+                            LogMessage.LogType.Error
+                        );
+                    }
+                }
+
+                //load mod media
+                for (int i = 0; i < manifest.Media.MediaSections.Count; i++)
+                {
+                    var mediaSection = manifest.Media.MediaSections[i];
+                    string fullMediaDir = string.Format("{0}\\{1}", manifest.InstalledPath, mediaSection.Directory.Replace("/", "//"));
+                    ResourceGroupManager.Singleton.AddResourceLocation(fullMediaDir, mediaSection.ResourceLoadType, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
+                    if (Directory.Exists(fullMediaDir))
+                    {
+                        DirectoryInfo di = new DirectoryInfo(fullMediaDir);
+                        var fileSystemInfos = di.EnumerateFileSystemInfos();
+                        foreach (var fileSystemInfo in fileSystemInfos)
+                        {
+                            if (fileSystemInfo.Attributes != FileAttributes.Directory)
+                            {
+                                currentMod.ModMediaData.Add(new ModMediaData(fileSystemInfo.Name, fileSystemInfo.FullName, mediaSection.ResourceType));
+                            }
+                        }
+                    }
+                }
+
+                //load mod localization files
+                string localizationFolder = "Locate";
+                string localizationFullPath = manifest.InstalledPath + "//" + localizationFolder;
+                string currentLocateFullPath = localizationFullPath + "//" + LocateSystem.Instance.Locate.ToString();
+                DirectoryInfo directory = new DirectoryInfo(currentLocateFullPath);
+                if (!Directory.Exists(currentLocateFullPath))
+                {
+                    Directory.CreateDirectory(currentLocateFullPath);
+                }
+                else
+                {
+                    var fileSystemInfos = directory.EnumerateFileSystemInfos();
+                    foreach (var fileSystemInfo in fileSystemInfos)
+                    {
+                        if (fileSystemInfo.Attributes != FileAttributes.Directory && Path.GetExtension(fileSystemInfo.Name) == "ucs")
+                        {
+                            LocateSystem.Instance.AddModLocateFile(fileSystemInfo.FullName);
+                        }
+                    }
+                }
+
+				ScreenManager.Instance.ModData = currentMod;
+
+				StringVector resources = ResourceGroupManager.Singleton.FindResourceNames(ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME, "*.script");
+                ScriptPreprocessor.Instance.Process(resources.ToList());
 
                 currentMod.MapDir = manifest.Data.MapDir;
                 currentMod.MusicDir = manifest.Data.MusicDir;
@@ -316,47 +393,33 @@ namespace OpenMB.Mods
             }
         }
 
-        string GetModInstallRootDir()
+        private string getAssemblyRealPath(string assemblyXml, out bool isCurrentMod)
         {
-            modInstallRootDir = GameManager.Instance.gameOptions.ModConfig.ModDir;
-            return modInstallRootDir;
-        }
-
-        bool ValidItemType(ModData mod, string itemType)
-        {
-            foreach (var itemTypeDefine in mod.ItemTypeInfos)
+            isCurrentMod = false;
+            if (string.IsNullOrEmpty(assemblyXml))
             {
-                if (itemTypeDefine.ID == itemType)
-                {
-                    return true;
-                }
-                else
-                {
-                    return ValidSubItemType(itemTypeDefine, itemType);
-                }
-            }
-            return false;
-        }
-
-        bool ValidSubItemType(ModItemTypeDfnXml itemDefineType, string itemType)
-        {
-            foreach (var subItemType in itemDefineType.SubTypes)
+                return string.Empty;
+            } 
+            string[] tokens = assemblyXml.Split('|');
+            if (tokens[0] != "this")
             {
-                if (subItemType.ID == itemType)
+                if (installedMods.ContainsKey(tokens[0]))
                 {
-                    return true;
+                    ModManifest mod = installedMods[tokens[0]];
+                    return mod.InstalledPath + "\\" + tokens[1] + ".dll";
                 }
-                else
-                {
-                    return ValidSubItemType(subItemType, itemType);
-                }
+                return null;
             }
-            return false;
+            else
+            {
+                isCurrentMod = true;
+                return tokens[1] + ".dll";
+            }
         }
 
         public Mods GetInstalledMods()
         {
-            GetModInstallRootDir();
+            getModInstallRootDir();
 
             if (!string.IsNullOrEmpty(modInstallRootDir))
             {
@@ -369,19 +432,11 @@ namespace OpenMB.Mods
                     if (File.Exists(string.Format("{0}/Module.xml", dir.FullName)))
                     {
                         ModManifest manifest = new ModManifest(dir.FullName);
-                        if (installedMods.ContainsKey(manifest.MetaData.Name))
+                        if (installedMods.ContainsKey(dir.Name))
                             continue;
-                        installedMods.Add(manifest.MetaData.Name, manifest);
-
-                        for (int i = 0; i < manifest.Media.MediaSections.Count; i++)
-                        {
-                            var mediaSection = manifest.Media.MediaSections[i];
-                            ResourceGroupManager.Singleton.AddResourceLocation(
-                                string.Format("{0}\\{1}", dir.FullName, mediaSection.Directory.Replace("/", "//")), mediaSection.Type, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
-                        }
-
-                        StringVector resources = ResourceGroupManager.Singleton.FindResourceNames(ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME, "*.script");
-                        ScriptPreprocessor.Instance.Process(resources.ToList());
+                        installedMods.Add(dir.Name, manifest);
+                        
+                        ResourceGroupManager.Singleton.AddResourceLocation(manifest.InstalledPath, "FileSystem", ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
                     }
                 }
             }
@@ -391,10 +446,7 @@ namespace OpenMB.Mods
 
         public void LoadMod(string name)
         {
-            if (LoadingModStarted != null)
-            {
-                LoadingModStarted();
-            }
+            LoadingModStarted?.Invoke();
             currentModName = name;
             worker.RunWorkerAsync();
         }
@@ -407,6 +459,54 @@ namespace OpenMB.Mods
         public void Update(float timeSinceLastFrame)
         {
 
+        }
+
+        private string getModInstallRootDir()
+        {
+            modInstallRootDir = GameManager.Instance.gameOptions.ModConfig.ModDir;
+            return modInstallRootDir;
+        }
+
+        private bool validItemType(ModData mod, string itemType)
+        {
+            bool ret = false;
+            foreach (var itemTypeDefine in mod.ItemTypeInfos)
+            {
+                if (itemTypeDefine.ID == itemType)
+                {
+                    return true;
+                }
+                else
+                {
+                    ret = validSubItemType(itemTypeDefine, itemType);
+                    if (ret)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return ret;
+        }
+
+        private bool validSubItemType(ModItemTypeDfnXml itemDefineType, string itemType)
+        {
+            bool ret = false;
+            foreach (var subItemType in itemDefineType.SubTypes)
+            {
+                if (subItemType.ID == itemType)
+                {
+                    return true;
+                }
+                else
+                {
+                    ret = validSubItemType(subItemType, itemType);
+                    if (ret)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return ret;
         }
     }
 }

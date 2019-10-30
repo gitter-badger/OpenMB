@@ -1,5 +1,7 @@
 ui_rendersystem	渲染系统
 ui_graphic	图形
+ui_resource	资源
+ui_plugin	插件
 ui_audio	音效
 ui_game	游戏
 ui_click_on_options	点击选项以修改
@@ -14,3 +16,16 @@ ui_localization	本地化
 ui_advanced_options	高级选项
 ui_is_enable_edit_mode	启用编辑模式
 ui_is_enable_cheat_mode	启用作弊
+ui_auto_detect	自动检测
+ui_filesystem	文件系统
+ui_zip	ZIP压缩文件
+ui_add	添加
+ui_modify	修改
+ui_delete	删除
+ui_file_browser_current_loc	当前路径
+ui_file_browser_up	向上
+ui_file_browser_title	浏览
+ui_file_browser_selected_file_name	选择的文件名称:
+ui_file_browser_selected_folder_name	选择的文件夹名称:
+ui_file_browser_err_must_select_valid_file	你必须选择一个有效的文件!
+ui_error	错误

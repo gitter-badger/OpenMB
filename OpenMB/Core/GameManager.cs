@@ -1,29 +1,24 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
-using Mogre;
-using MOIS;
-using Mogre_Procedural;
+﻿using Mogre;
 using Mogre_Procedural.MogreBites;
-using NVorbis;
+using MOIS;
 using OpenMB.Configure;
+using OpenMB.Core;
+using OpenMB.Game;
 using OpenMB.Localization;
 using OpenMB.LogMessage;
 using OpenMB.Mods;
 using OpenMB.Network;
-using OpenMB.Output;
-using OpenMB.Game;
 using OpenMB.Screen;
 using OpenMB.Sound;
 using OpenMB.States;
-using OpenMB.Widgets;
-using OpenMB.Core;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace OpenMB
 {
-    public enum EngineState
+	public enum EngineState
     {
         NORMAL,
         EDIT_MODE
@@ -41,22 +36,22 @@ namespace OpenMB
         private SoundManager soundMgr;
         private ScreenManager uiMgr;
         private EngineState currentState;
-        public GameConfigXml gameOptions;
+		private InputKeyMouseManager keyMouseManager;
+		public GameConfigXml gameOptions;
         public Root root;
         public RenderWindow renderWindow;
         public Viewport viewport;
         public EngineLog log;
         public Log rendererLog;
         public Timer timer;
-        public InputManager inputMgr;
+        public MOIS.InputManager inputMgr;
         public Keyboard keyboard;
         public Mouse mouse;
         public SdkTrayManager trayMgr;
         public static string LastStateName;
         public event Action<float> Update;
-        public Dictionary<int, GameObject> AllGameObjects;
-        public Dictionary<string, uint> GameHashMap;
         public LoadingData loadingData;
+		public Dictionary<string, object> GlobalValueTable;
         public bool IS_ENABLE_EDIT_MODE
         {
             get
@@ -108,13 +103,12 @@ namespace OpenMB
             trayMgr = null;
             appStateMgr = null;
             soundMgr = null;
-            AllGameObjects = new Dictionary<int,GameObject>();
-            GameHashMap = new Dictionary<string, uint>();
             videoMode = new NameValuePairList();
             isEditMode = false;
             isCheatMode = false;
             loadingData = new LoadingData(LoadingType.NONE, null, null, null);
-         }
+			GlobalValueTable = new Dictionary<string, object>();
+		 }
 
         public bool Init(string windowTitle, GameConfigXml gameOptions)
         {
@@ -188,44 +182,37 @@ namespace OpenMB
             int hWnd = 0;
             
             renderWindow.GetCustomAttribute("WINDOW", out hWnd);
- 
-            inputMgr = InputManager.CreateInputSystem((uint)hWnd);
+
+			inputMgr = MOIS.InputManager.CreateInputSystem((uint)hWnd);
             keyboard = (Keyboard)inputMgr.CreateInputObject(MOIS.Type.OISKeyboard, true);
             mouse =  (Mouse)inputMgr.CreateInputObject(MOIS.Type.OISMouse, true);
-
-            mouse.MouseMoved+=new MouseListener.MouseMovedHandler(mouseMoved);
-            mouse.MousePressed += new MouseListener.MousePressedHandler(mousePressed);
-            mouse.MouseReleased += new MouseListener.MouseReleasedHandler(mouseReleased);
-
-            keyboard.KeyPressed += new KeyListener.KeyPressedHandler(keyPressed);
-            keyboard.KeyReleased += new KeyListener.KeyReleasedHandler(keyReleased);
+			keyMouseManager = new InputKeyMouseManager();
+			keyMouseManager.SomeKeyPressd += KeyMouseManager_SomeKeyPressd;
 
             MouseState_NativePtr mouseState = mouse.MouseState;
                 mouseState.width = viewport.ActualWidth;
                 mouseState.height = viewport.ActualHeight;
 
-            string secName, typeName, archName;
-            IniConfigFile conf = new IniConfigFile();
-            
-            conf = (IniConfigFile)parser.Load("resources.cfg");
-            for (int i = 0; i < conf.Sections.Count; i++)
+            foreach (var resource in gameOptions.ResourcesConfig.Resources)
             {
-                secName = conf.Sections[i].Name;
-                for (int j = 0; j < conf.Sections[i].KeyValuePairs.Count; j++)
+                foreach (var resLoc in resource.ResourceLocs)
                 {
-                    typeName = conf.Sections[i].KeyValuePairs[j].Key;
-                    archName = conf.Sections[i].KeyValuePairs[j].Value;
-                    ResourceGroupManager.Singleton.AddResourceLocation(archName, typeName, secName);
+                    ResourceGroupManager.Singleton.AddResourceLocation(resLoc, resource.Type, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
                 }
             }
 
-            if (!LocateSystem.Singleton.IsInit)
+			foreach (var keyMapper in gameOptions.InputConfig.Mappers)
+			{
+				KeyMapperManager.Instance.AddKeyMapper(keyMapper.GameKeyCode, keyMapper.GetKeyCollections());
+			}
+
+            if (!LocateSystem.Instance.IsInit)
             {
-                LocateSystem.Singleton.InitLocateSystem(LocateSystem.Singleton.CovertReadableStringToLocate(gameOptions.LocateConfig.CurrentLocate));
+                LocateSystem.Instance.InitLocateSystem(LocateSystem.Instance.ConvertReadableStringToLocate(gameOptions.LocateConfig.CurrentLocate));
             }
 
             ResourceGroupManager.Singleton.AddResourceLocation(
-                string.Format("./Media/Engine/Fonts/{0}/", LocateSystem.Singleton.Locate.ToString()), "FileSystem",
+                string.Format("./Media/Engine/Fonts/{0}/", LocateSystem.Instance.Locate.ToString()), "FileSystem",
                 "General");
 
             TextureManager.Singleton.DefaultNumMipmaps = 5;
@@ -246,7 +233,7 @@ namespace OpenMB
             return true;
         }
 
-        public void SetFullScreen()
+		public void SetFullScreen()
         {
             renderWindow.SetFullscreen(
                 !renderWindow.IsFullScreen,
@@ -258,7 +245,7 @@ namespace OpenMB
         private bool InitSubSystem(GameConfigXml gameOptions)
         {
             appStateMgr = new AppStateManager();
-            locateMgr = LocateSystem.Singleton;
+            locateMgr = LocateSystem.Instance;
             modMgr = new ModManager();
             networkMgr = new NetworkManager();
             outputMgr = new OutputManager();
@@ -283,6 +270,9 @@ namespace OpenMB
             try
             {
                 isEditMode = gameOptions.CoreConfig.IsEnableEditMode;
+
+				TimerManager.Instance.Init(1257, 3, 29, 9, 0, 0);
+
                 return true;
             }
             catch
@@ -297,13 +287,12 @@ namespace OpenMB
             {
                 Update(evt.timeSinceLastFrame);
             }
-            UpdateRender(evt.timeSinceLastFrame);
             return true;
         }
 
         public void Exit()
         {
-            LocateSystem.Singleton.SaveLocateFile();
+            LocateSystem.Instance.SaveLocateFile();
             log.LogMessage("Game Quit!");
             log.Dispose();
         }
@@ -312,57 +301,50 @@ namespace OpenMB
         {
         }
 
-        public void UpdateGame(double timeSinceLastFrame)
+        public bool keyPressed(KeyEvent key)
         {
-            foreach (var eachGameObj in AllGameObjects)
-            {
-                eachGameObj.Value.Update((float)timeSinceLastFrame);
-            }
-        }
+			if (keyboard.IsKeyDown(KeyCode.KC_V))
+			{
+				return true;
+			}
+			else if (keyboard.IsKeyDown(KeyCode.KC_O))
+			{
+			}
+			else if (keyboard.IsKeyDown(KeyCode.KC_SPACE))
+			{
 
-        public bool keyPressed(KeyEvent keyEventRef)
-        {
-            if(keyboard.IsKeyDown(KeyCode.KC_V))
-            {
-                renderWindow.WriteContentsToTimestampedFile("AMGE_ScreenShot_", ".jpg");
-                outputMgr.DisplayMessage(string.Format(locateMgr.GetLocalizedString(LocateFileType.GameString,"str_screenshots_saved_to_{0}"), Environment.CurrentDirectory));
-                return true;
-            }
-            else if(keyboard.IsKeyDown(KeyCode.KC_O))
-            {
-                if(trayMgr.isLogoVisible())
-                {
-                    trayMgr.hideFrameStats();
-                    trayMgr.hideLogo();
-                }
-                else
-                {
-                    trayMgr.showFrameStats(TrayLocation.TL_BOTTOMLEFT);
-                    trayMgr.showLogo(TrayLocation.TL_BOTTOMRIGHT);
-                }
-            }
+			}
  
             return true;
         }
-        public bool keyReleased(KeyEvent keyEventRef)
-        {
-            return true;
-        }
 
-        public bool mouseMoved(MouseEvent evt)
-        {
-            return true;
-        }
-        public bool mousePressed(MouseEvent evt, MouseButtonID id)
-        {
-            return true;
-        }
-        public bool mouseReleased(MouseEvent evt, MouseButtonID id)
-        {
-            return true;
-        }
+		private void KeyMouseManager_SomeKeyPressd(KeyCode keyCode)
+		{
+			if (keyCode == KeyMapperManager.Instance.GetKey(GameKeyCode.FullScreen))
+			{
+				SetFullScreen();
+			}
+			else if(keyCode == KeyMapperManager.Instance.GetKey(GameKeyCode.Screenshot))
+			{
+				renderWindow.WriteContentsToTimestampedFile("ScreenShot_", ".jpg");
+				outputMgr.DisplayMessage(string.Format(locateMgr.GetLocalizedString(LocateFileType.GameString, "str_screenshots_saved_to_{0}"), Environment.CurrentDirectory));
+			}
+			else if (keyCode == KeyMapperManager.Instance.GetKey(GameKeyCode.ShowOgreLogo))
+			{
+				if (trayMgr.isLogoVisible())
+				{
+					trayMgr.hideFrameStats();
+					trayMgr.hideLogo();
+				}
+				else
+				{
+					trayMgr.showFrameStats(TrayLocation.TL_BOTTOMLEFT);
+					trayMgr.showLogo(TrayLocation.TL_BOTTOMRIGHT);
+				}
+			}
+		}
 
-        public void ChangeState(EngineState newState)
+		public void ChangeState(EngineState newState)
         {
             if (currentState == newState)
             {

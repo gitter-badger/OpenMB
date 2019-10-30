@@ -6,6 +6,7 @@ using OpenMB.Game;
 using OpenMB.Mods.XML;
 using OpenMB.Sound;
 using OpenMB.Game.ItemTypes;
+using OpenMB.Map;
 
 namespace OpenMB.Mods
 {
@@ -22,6 +23,8 @@ namespace OpenMB.Mods
         private List<ModWorldMapDfnXml> worldMapInfos;
         private List<ModLocationDfnXml> locationInfos;
         private List<ModSkeletonDfnXML> skeletonInfos;
+		private List<ModMenuDfnXml> menuInfos;
+		private List<ModMediaData> modMediaData;
 
         public bool HasSinglePlayer { get; set; }
         public bool HasMultiplater { get; set; }
@@ -31,6 +34,7 @@ namespace OpenMB.Mods
         public List<IModModelType> ModModelTypes { get; set; }
         public List<IModSetting> ModSettings { get; set; }
         public List<IModTriggerCondition> ModTriggerConditions { get; set; }
+        public List<IGameMapLoader> MapLoaders { get; set; }
 
         public string MusicDir { get; set; }
         public string MapDir { get; set; }
@@ -90,9 +94,13 @@ namespace OpenMB.Mods
         {
             get { return locationInfos; }
             set { locationInfos = value; }
-        }
-
-        public List<ModSkeletonDfnXML> SkeletonInfos
+		}
+		public List<ModMenuDfnXml> MenuInfos
+		{
+			get { return menuInfos; }
+			set { menuInfos = value; }
+		}
+		public List<ModSkeletonDfnXML> SkeletonInfos
         {
             get { return skeletonInfos; }
             set { skeletonInfos = value; }
@@ -102,7 +110,9 @@ namespace OpenMB.Mods
 
         public List<ModScenePropDfnXml> SceneProps { get; set; }
         public List<ModModelDfnXml> Models { get; set; }
-        public List<IItemType> ItemTypes { get; internal set; }
+        public List<IItemType> ItemTypes { get; set; }
+
+        public List<ModMediaData> ModMediaData { get { return modMediaData; } }
 
         public ModData()
         {
@@ -117,8 +127,10 @@ namespace OpenMB.Mods
             locationInfos = new List<ModLocationDfnXml>();
             SkeletonInfos = new List<ModSkeletonDfnXML>();
             ItemTypeInfos = new List<ModItemTypeDfnXml>();
+			menuInfos = new List<ModMenuDfnXml>();
+			modMediaData = new List<ModMediaData>();
 
-            HasSinglePlayer = true;
+			HasSinglePlayer = true;
             HasMultiplater = true;
             HasCredit = true;
             HasSavedGame = true;
@@ -126,6 +138,8 @@ namespace OpenMB.Mods
             ModModelTypes = new List<IModModelType>();
             ModSettings = new List<IModSetting>();
             ModTriggerConditions = new List<IModTriggerCondition>();
+            ItemTypes = new List<IItemType>();
+            MapLoaders = new List<IGameMapLoader>();
         }
 
         public ModItemTypeDfnXml FindItemType(string itemType)
@@ -159,6 +173,44 @@ namespace OpenMB.Mods
                 }
             }
             return null;
+        }
+    }
+
+    public class ModMediaData
+    {
+        private string mediaName;
+        private ResourceType mediaType;
+        private string fullMediaPath;
+
+        public ResourceType MediaType
+        {
+            get
+            {
+                return mediaType;
+            }
+        }
+
+        public string FullMediaPath
+        {
+            get
+            {
+                return fullMediaPath;
+            }
+        }
+
+        public string MediaName
+        {
+            get
+            {
+                return mediaName;
+            }
+        }
+
+        public ModMediaData(string mediaName, string fullMediaPath, ResourceType mediaType)
+        {
+            this.mediaName = mediaName;
+            this.fullMediaPath = fullMediaPath;
+            this.mediaType = mediaType;
         }
     }
 }

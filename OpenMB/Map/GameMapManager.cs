@@ -24,9 +24,24 @@ namespace OpenMB.Map
             }
         }
 
+        public string CurrentMapName
+        {
+            get
+            {
+                if (currentMap != null)
+                {
+                    return currentMap.Name;
+                }
+                else
+                {
+                    return string.Empty;
+                }
+            }
+        }
+
         public GameMapManager()
         {
-            maps = new Queue<IMap>();
+            maps = new Queue<IGameMap>();
         }
 
         public void Init(ModData modData)
@@ -35,15 +50,16 @@ namespace OpenMB.Map
         }
 
         private GameWorld world;
-        private IMap currentMap;
-        private Queue<IMap> maps;
-        public void Load(string name)
+        private IGameMap currentMap;
+        private Queue<IGameMap> maps;
+        public void Load(string name, IGameMapLoader loader)
         {
             if (maps.Count > 0)
             {
                 maps.Dequeue().Destroy();
             }
-            IMap map = new GameMap(name, world);
+            GameMap map = new GameMap(world, loader);
+            map.LoadMap(name);
             maps.Enqueue(map);
             map.LoadMapStarted += Map_LoadMapStarted;
             map.LoadMapFinished += Map_LoadMapFinished;
@@ -51,13 +67,14 @@ namespace OpenMB.Map
             map.LoadAsync();
         }
 
-        public void LoadWorldMap(string worldMapID, string file)
+        public void LoadWorldMap(string worldMapID, string file, IGameMapLoader loader)
         {
             if (maps.Count > 0)
             {
                 maps.Dequeue().Destroy();
             }
-            IMap map = new GameMap(worldMapID, file, world);
+            GameMap map = new GameMap(world, loader);
+            map.LoadWorldMap(worldMapID, file);
             maps.Enqueue(map);
             map.LoadMapStarted += Map_LoadMapStarted;
             map.LoadMapFinished += Map_LoadMapFinished;
@@ -87,21 +104,12 @@ namespace OpenMB.Map
             maps.Clear();
         }
 
-        public string GetCurrentMapName()
+        public GameMap CurrentMap
         {
-            if (currentMap != null)
+            get
             {
-                return currentMap.GetName();
+                return (GameMap)currentMap;
             }
-            else
-            {
-                return string.Empty;
-            }
-        }
-
-        public GameMap GetCurrentMap()
-        {
-            return (GameMap)currentMap;
         }
 
         public void Update(float timeSinceLastFrame)

@@ -1,5 +1,5 @@
 # OpenMB
-![Build](https://travis-ci.org/cookgreen/AMGE.svg?branch=dev) ![License](https://img.shields.io/badge/License-GPL-blue.svg)
+![Build](https://travis-ci.org/cookgreen/AMGE.svg?branch=dev) ![License](https://img.shields.io/badge/License-GPL-blue.svg)  
 
 ## Introduction:
 Open Source role-playing game engine for Taleworlds' Mount&Blade Series written in C# using Ogre3d Engine
@@ -13,15 +13,6 @@ Open Source role-playing game engine for Taleworlds' Mount&Blade Series written 
 * Inner Game Editor  
 * Script-driven GUI System  
 
-## Credit:
-* Mogre  
-* NAudio  
-* NVorbis  
-* MogreBites  
-* Physx Candy Wrapper
-* Critter ai Navmesh path finder
-* OpenBRF
-
 ## Usage:
 * Shift+Space - Full Screen  
 * V - Screenshot  
@@ -31,6 +22,19 @@ Open Source role-playing game engine for Taleworlds' Mount&Blade Series written 
   * S - Backward  
   * D - Right  
   * Mouse Control Camera look at  
+  
+## Screenshots:
+
+![](https://media.moddb.com/images/games/1/72/71205/image.png)  
+
+## Credit:
+* Mogre  
+* NAudio  
+* NVorbis  
+* MogreBites  
+* Physx Candy Wrapper
+* Critter ai Navmesh path finder
+* OpenBRF
 
 ## License:
 GPLv3

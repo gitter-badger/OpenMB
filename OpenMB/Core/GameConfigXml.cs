@@ -1,4 +1,6 @@
-﻿using System;
+﻿using MOIS;
+using OpenMB.Configure;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -22,6 +24,12 @@ namespace OpenMB.Core
         public GameNetworkConfigXml NetworkConfig { get; set; }
         [XmlElement("Game")]
         public GameCoreConfigXml CoreConfig { get; set; }
+		[XmlElement("Input")]
+		public GameInputConfigXml InputConfig { get; set; }
+		[XmlElement("Resources")]
+        public GameResourcesConfigXml ResourcesConfig { get; set; }
+        [XmlElement("Plugins")]
+        public GamePluginsConfigXml PluginConfig { get; set; }
 
         public GameConfigXml()
         {
@@ -31,7 +39,8 @@ namespace OpenMB.Core
             ModConfig = new GameModConfigXml();
             NetworkConfig = new GameNetworkConfigXml();
             CoreConfig = new GameCoreConfigXml();
-        }
+			InputConfig = new GameInputConfigXml();
+		}
 
         public static GameConfigXml Load(string configXml)
         {
@@ -57,16 +66,24 @@ namespace OpenMB.Core
             return config;
         }
 
-        public void Save(string configXml)
+        public bool Save(string configXml)
         {
-            if(File.Exists(configXml))
+            try
             {
-                File.Delete(configXml);
+                if (File.Exists(configXml))
+                {
+                    File.Delete(configXml);
+                }
+                XmlSerializer serializer = new XmlSerializer(typeof(GameConfigXml));
+                FileStream stream = new FileStream(configXml, FileMode.OpenOrCreate, FileAccess.Write);
+                serializer.Serialize(stream, this);
+                stream.Close();
+                return true;
             }
-            XmlSerializer serializer = new XmlSerializer(typeof(GameConfigXml));
-            FileStream stream = new FileStream(configXml, FileMode.OpenOrCreate, FileAccess.Write);
-            serializer.Serialize(stream, this);
-            stream.Close();
+            catch
+            {
+                return false;
+            }
         }
     }
 
@@ -77,9 +94,49 @@ namespace OpenMB.Core
         public bool IsEnableEditMode { get; set; }
         [XmlElement]
         public bool IsEnableCheatMode { get; set; }
-    }
+	}
 
-    [XmlRoot("Graphic")]
+	[XmlRoot("Input")]
+	public class GameInputConfigXml
+	{
+		[XmlElement("Mapper")]
+		public List<GameInputMapperConfigXml> Mappers { get; set; }
+
+		public GameInputConfigXml()
+		{
+			Mappers = new List<GameInputMapperConfigXml>();
+		}
+	}
+
+	[XmlRoot("Mapper")]
+	public class GameInputMapperConfigXml
+	{
+		[XmlAttribute]
+		public GameKeyCode GameKeyCode { get; set; }
+		[XmlAttribute]
+		public bool Combined { get; set; }
+		[XmlElement("Key")]
+		public List<GameInputMapperKeyConfigXml> Keys { get; set; }
+
+		public KeyCollection GetKeyCollections()
+		{
+			KeyCollection kc = new KeyCollection();
+			foreach(var key in Keys)
+			{
+				kc.keyCodes.Add(key.KeyCode);
+			}
+			return kc;
+		}
+	}
+
+	[XmlRoot("Key")]
+	public class GameInputMapperKeyConfigXml
+	{
+		[XmlText]
+		public KeyCode KeyCode { get; set; }
+	}
+
+	[XmlRoot("Graphic")]
     public class GameGraphicConfigXml
     {
         [XmlElement("RenderSystem")]
@@ -153,5 +210,36 @@ namespace OpenMB.Core
     {
         [XmlElement]
         public string Port { get; set; }
+    }
+
+    [XmlRoot("Resources")]
+    public class GameResourcesConfigXml
+    {
+        [XmlElement("ResourceRootDir")]
+        public string ResourceRootDir { get; set; }
+        [XmlElement("Resource")]
+        public List<GameResourceConfigXml> Resources { get; set; }
+        public GameResourcesConfigXml()
+        {
+            Resources = new List<GameResourceConfigXml>();
+        }
+    }
+
+    [XmlRoot("Resource")]
+    public class GameResourceConfigXml
+    {
+        [XmlAttribute]
+        public string Type { get; set; }
+        [XmlElement("ResourceLoc")]
+        public List<string> ResourceLocs;
+    }
+
+    [XmlRoot("Plugins")]
+    public class GamePluginsConfigXml
+    {
+        [XmlElement]
+        public string PluginRootDir { get; set; }
+        [XmlElement("Plugin")]
+        public List<string> Plugins { get; set; }
     }
 }

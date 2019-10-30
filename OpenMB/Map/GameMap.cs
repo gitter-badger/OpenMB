@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using OpenMB.Game.ControlObjType;
+using System.IO;
 
 namespace OpenMB.Map
 {
@@ -22,16 +23,14 @@ namespace OpenMB.Map
     /// <summary>
     /// Define a map in the game
     /// </summary>
-    public class GameMap : IMap
+    public class GameMap : IGameMap
     {
         private string mapName;
-        private DotSceneLoader.DotSceneLoader mapLoader;
-        private List<Character> agents;
-
+        private IGameMapLoader loader;
         private Dictionary<string, List<GameObject>> gameObjects;
         private List<ActorNode> actorNodeList;
         private ScriptLoader scriptLoader;
-        private SceneManager scm;
+        private SceneManager sceneManager;
         //private TerrainGroup terrianGroup;
         private Scene physicsScene;
         //private NavmeshQuery query;
@@ -40,7 +39,7 @@ namespace OpenMB.Map
         private ControllerManager controllerMgr;
         private Player player;
         private Character playerAgent;
-        private Camera cam;
+        private Camera camera;
         private CameraHandler cameraHanlder;
         private GameWorld world;
         private AIMesh aimesh;
@@ -50,6 +49,13 @@ namespace OpenMB.Map
         private bool combineKey;
         private KeyCode combineKeyCode;
 
+        public string Name
+        {
+            get
+            {
+                return mapName;
+            }
+        }
         public ModData ModData
         {
             get
@@ -107,18 +113,43 @@ namespace OpenMB.Map
             }
         }
 
+        public AIMesh AIMesh
+        {
+            get
+            {
+                return aimesh;
+            }
+        }
+
+        public List<Character> Agents
+        {
+            get
+            {
+                List<Character> agents = new List<Character>();
+                if(gameObjects.ContainsKey("AGENTS"))
+                {
+                    foreach (var gameObject in gameObjects["AGENTS"])
+                    {
+                        agents.Add(gameObject as Character);
+                    }
+                }
+                return agents;
+            }
+        }
+
         public event MapLoadhandler LoadMapStarted;
         public event MapLoadhandler LoadMapFinished;
-
-        public GameMap(string name, GameWorld world)
+        public GameMap(GameWorld world, IGameMapLoader loader)
         {
-            mapName = name;
             scriptLoader = new ScriptLoader();
             actorNodeList = new List<ActorNode>();
             this.world = world;
-            scm = world.SceneManager;
+            this.loader = loader;
+            loader.LoadMapFinished += Loader_LoadMapFinished;
+
+            sceneManager = world.SceneManager;
             modData = world.ModData;
-            cam = world.Camera;
+            camera = world.Camera;
             physicsScene = world.PhysicsScene;
             physics = world.PhysicsScene.Physics;
             controllerMgr = physics.ControllerManager;
@@ -135,52 +166,51 @@ namespace OpenMB.Map
             GameManager.Instance.keyboard.KeyPressed += Keyboard_KeyPressed;
             GameManager.Instance.keyboard.KeyReleased += Keyboard_KeyReleased;
         }
-        public GameMap(string name, string file, GameWorld world)
+
+        private void Loader_LoadMapFinished()
+        {
+            aimesh = new AIMesh();
+            gameObjects = new Dictionary<string, List<GameObject>>();
+
+            var file = scriptLoader.Parse(Path.GetFileNameWithoutExtension(loader.LoadedMapName)+".script", ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
+            scriptLoader.ExecuteFunction(file, "map_loaded", world);
+            
+            TriggerManager.Instance.Init(world, scriptLoader.currentContext);
+
+            editor.Initization();
+            
+            LoadMapFinished?.Invoke();
+        }
+
+        public void LoadMap(string name)
         {
             mapName = name;
-            scriptLoader = new ScriptLoader();
-            actorNodeList = new List<ActorNode>();
-            this.world = world;
-            scm = world.SceneManager;
-            modData = world.ModData;
-            cam = world.Camera;
-            physicsScene = world.PhysicsScene;
-            physics = world.PhysicsScene.Physics;
-            controllerMgr = physics.ControllerManager;
-            aimeshIndexData = new List<Mogre.Vector3>();
-            aimeshVertexData = new List<Mogre.Vector3>();
-            editor = new GameMapEditor(this);
-            cameraHanlder = new CameraHandler(this);
-            gameObjects = new Dictionary<string, List<GameObject>>();
-            combineKey = false;
+            loader.LoadAsync(sceneManager, mapName);
+        }
 
+        public void LoadWorldMap(string name, string file)
+        {
             var mesh = Connector.MBOgre.Instance.LoadWorldMap(
-                name, scm,
+                name, sceneManager,
                 FileFormats.MBWorldMap.ParseXml(
                     GameMapManager.Instance.FindPath(file)
                 )
             );
-            if (scm.HasEntity("CURRENT_WORLDMAP"))
+            if (sceneManager.HasEntity("CURRENT_WORLDMAP"))
             {
-                scm.DestroyEntity("CURRENT_WORLDMAP");
+                sceneManager.DestroyEntity("CURRENT_WORLDMAP");
             }
-            if (scm.HasSceneNode("CURRENT_WORLDMAP_SCENENODE"))
+            if (sceneManager.HasSceneNode("CURRENT_WORLDMAP_SCENENODE"))
             {
-                scm.DestroySceneNode("CURRENT_WORLDMAP_SCENENODE");
+                sceneManager.DestroySceneNode("CURRENT_WORLDMAP_SCENENODE");
             }
-            var worldmapEnt = scm.CreateEntity("CURRENT_WORLDMAP", "WORLDMAP-" + name);
-            scm.RootSceneNode.CreateChildSceneNode("CURRENT_WORLDMAP_SCENENODE").AttachObject(worldmapEnt);
-
-            GameManager.Instance.mouse.MouseMoved += Mouse_MouseMoved;
-            GameManager.Instance.mouse.MousePressed += Mouse_MousePressed;
-            GameManager.Instance.mouse.MouseReleased += Mouse_MouseReleased;
-            GameManager.Instance.keyboard.KeyPressed += Keyboard_KeyPressed;
-            GameManager.Instance.keyboard.KeyReleased += Keyboard_KeyReleased;
+            var worldmapEnt = sceneManager.CreateEntity("CURRENT_WORLDMAP", "WORLDMAP-" + name);
+            sceneManager.RootSceneNode.CreateChildSceneNode("CURRENT_WORLDMAP_SCENENODE").AttachObject(worldmapEnt);
         }
 
         public Entity CreateEntityWithMaterial(string name, string entityMeshName, string materialName)
         {
-            Entity ent = scm.CreateEntity(name, entityMeshName);
+            Entity ent = sceneManager.CreateEntity(name, entityMeshName);
             ent.SetMaterialName(materialName);
             uint subEntNum = ent.NumSubEntities;
             for (uint i = 0; i < subEntNum; i++)
@@ -208,9 +238,16 @@ namespace OpenMB.Map
                    attachOptionWhenHave, damage, range, world, ammoCapcity, amourNum);
         }
 
-        public void CreateCharacter(string characterID, Mogre.Vector3 position, string teamId, bool isBot = true)
+        /// <summary>
+        /// Create a character that controlled by AI
+        /// </summary>
+        /// <param name="characterTypeID"></param>
+        /// <param name="position"></param>
+        /// <param name="teamId"></param>
+        /// <param name="isBot"></param>
+        public void CreateCharacter(string characterTypeID, Mogre.Vector3 position, string teamId, bool isBot = true)
         {
-            var findTrooperList = ModData.CharacterInfos.Where(o => o.ID == characterID);
+            var findTrooperList = ModData.CharacterInfos.Where(o => o.ID == characterTypeID);
             if (findTrooperList.Count() == 0)
             {
                 GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid trooper id!", LogMessage.LogType.Warning);
@@ -226,18 +263,34 @@ namespace OpenMB.Map
             }
             var findSkin = findSkinList.First();
 
+            int characterInstanceID = -1;
+            if (gameObjects.ContainsKey("AGENTS"))
+            {
+                characterInstanceID = gameObjects["AGENTS"].Count;
+            }
+            else
+            {
+                characterInstanceID = 0;
+                gameObjects.Add("AGENTS", new List<GameObject>());
+            }
+
             Character character = new Character(
-                world, agents.Count, teamId,
+                world, characterInstanceID, teamId,
                 findTrooper.Name,
                 findTrooper.MeshName,
                 position, findSkin, true);
-
-            agents.Add(character);
+            gameObjects["AGENTS"].Add(character);
         }
         
-        public void CreatePlayer(string trooperID, Mogre.Vector3 position, string teamId)
+        /// <summary>
+        /// Create a character that player can control
+        /// </summary>
+        /// <param name="characterTypeID"></param>
+        /// <param name="position"></param>
+        /// <param name="teamId"></param>
+        public void CreatePlayer(string characterTypeID, Mogre.Vector3 position, string teamId)
         {
-            var findTrooperList = ModData.CharacterInfos.Where(o => o.ID == trooperID);
+            var findTrooperList = ModData.CharacterInfos.Where(o => o.ID == characterTypeID);
             if (findTrooperList.Count() == 0)
             {
                 GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid trooper id!", LogMessage.LogType.Warning);
@@ -252,9 +305,20 @@ namespace OpenMB.Map
                 return;
             }
             var findSkin = findSkinList.First();
+            
+            int characterInstanceID = -1;
+            if (gameObjects.ContainsKey("AGENTS"))
+            {
+                characterInstanceID = gameObjects["AGENTS"].Count;
+            }
+            else
+            {
+                characterInstanceID = 0;
+                gameObjects.Add("AGENTS", new List<GameObject>());
+            }
 
             Character character = new Character(
-                world, agents.Count, teamId,
+                world, characterInstanceID, teamId,
                 findTrooper.Name,
                 findTrooper.MeshName,
                 position, findSkin, false);
@@ -264,8 +328,15 @@ namespace OpenMB.Map
                 return;
             }
             player = new Player(findTrooper.Name, character.ID, new ControlObjectTypeCharacter(character));
+            gameObjects[characterTypeID].Add(character);
         }
 
+        /// <summary>
+        /// Create a static scene prop
+        /// </summary>
+        /// <param name="scenePropID"></param>
+        /// <param name="position"></param>
+        /// <returns></returns>
         public string CreateSceneProp(string scenePropID, Mogre.Vector3 position)
         {
             var findSceneProps = modData.SceneProps.Where(o => o.ID == scenePropID);
@@ -304,6 +375,11 @@ namespace OpenMB.Map
             return null;
         }
 
+        /// <summary>
+        /// Create a scene prop that player can control
+        /// </summary>
+        /// <param name="scenePropID"></param>
+        /// <param name="position"></param>
         public void CreatePlayerSceneProp(string scenePropID, Mogre.Vector3 position)
         {
             var findSceneProps = modData.SceneProps.Where(o => o.ID == scenePropID);
@@ -457,7 +533,7 @@ namespace OpenMB.Map
 
         public void RemoveAgent(GameObject owner)
         {
-            agents.Remove((Character)owner);
+            Agents.Remove((Character)owner);
             owner.Dispose();
         }
 
@@ -487,17 +563,7 @@ namespace OpenMB.Map
                     {
                         //EditMode
                         cameraHanlder.ChangeMode(CameraMode.Manual);//Manually control
-                        ScreenManager.Instance.ChangeScreen("InnerGameEditor", editor);
-                    }
-                    break;
-                case KeyCode.KC_SPACE:
-                    if (!combineKey && combineKeyCode != KeyCode.KC_LCONTROL)
-                    {
-                        break;
-                    }
-                    else
-                    {
-                        GameManager.Instance.SetFullScreen();
+                        ScreenManager.Instance.ChangeScreen("InnerGameEditor", false, editor);
                     }
                     break;
                 case KeyCode.KC_I:
@@ -506,7 +572,7 @@ namespace OpenMB.Map
                     {
                         break;
                     }
-                    ScreenManager.Instance.ChangeScreen("Inventory", playerAgent.MeshName, new string[]{
+                    ScreenManager.Instance.ChangeScreen("Inventory", false, playerAgent.MeshName, new string[]{
                         playerAgent.GetIdleTopAnim(), playerAgent.GetIdleBaseAnim()
                     });
                     break;
@@ -558,7 +624,6 @@ namespace OpenMB.Map
             else if (playerAgent == null)
             {
                 cameraHanlder.InjectMouseMove(arg);
-                
             }
             return true;
         }
@@ -600,29 +665,6 @@ namespace OpenMB.Map
 
         public void LoadAsync()
         {
-            mapLoader = new DotSceneLoader.DotSceneLoader();
-            mapLoader.LoadSceneStarted += mapLoader_LoadMapStarted;
-            mapLoader.LoadSceneFinished += mapLoader_LoadMapFinished;
-            mapLoader.ParseDotSceneAsync(mapName, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME, scm);
-        }
-
-        private void mapLoader_LoadMapFinished()
-        {
-            if(LoadMapFinished!=null)
-            {
-                agents = new List<Character>();
-                gameObjects = new Dictionary<string, List<GameObject>>();
-
-                var file = scriptLoader.Parse(mapLoader.ScriptName, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
-                scriptLoader.ExecuteFunction(file, "map_loaded", world);
-
-                TriggerManager.Instance.Init(world, scriptLoader.currentContext);
-
-                aimesh = mapLoader.AIMesh;
-                editor.Initization(aimesh);
-
-                LoadMapFinished();
-            }
         }
 
         private void mapLoader_LoadMapStarted()
@@ -704,12 +746,7 @@ namespace OpenMB.Map
             PhysicsScene.FlushStream();
         }
 
-        public string GetName()
-        {
-            return mapName;
-        }
-
-        public GameObject GetObjectById(string objectID, int objectId)
+        public GameObject GetObjectById(string objectTypeID, int objectId)
         {
             if (gameObjects.Count == 0)
             {
@@ -719,21 +756,16 @@ namespace OpenMB.Map
             {
                 return null;
             }
-            return gameObjects[objectID].ElementAt(objectId);
+            return gameObjects[objectTypeID].ElementAt(objectId);
         }
 
         public Character GetAgentById(int agentId)
         {
-            if (agents.Count == 0)
+            if (Agents.Count == 0)
             {
                 return null;
             }
-            return (Character)agents.ElementAt(agentId);
-        }
-
-        public List<Character> GetAgents()
-        {
-            return agents;
+            return Agents.Where(o => o.Id == agentId).FirstOrDefault();
         }
 
         public List<GameObject> GetGameObjects(string objectID)
