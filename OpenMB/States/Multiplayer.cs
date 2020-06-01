@@ -4,6 +4,7 @@ using Mogre;
 using Mogre_Procedural.MogreBites;
 using OpenMB.Mods;
 using OpenMB.Network;
+using OpenMB.Widgets;
 
 namespace OpenMB.States
 {
@@ -13,14 +14,15 @@ namespace OpenMB.States
         private GameServer thisServer;
         private Dictionary<string, string> option;
         private StringVector serverState;
-        private ParamsPanel serverpanel;
+        private ParamsPanelWidget serverpanel;
         private bool isEscapeMenuOpened;
 
         public Multiplayer()
         {
             option = new Dictionary<string, string>();
             serverState = new StringVector();
-        }
+			thisServer = new GameServer();
+		}
 
         public override void enter(Mods.ModData e = null)
         {
@@ -43,9 +45,9 @@ namespace OpenMB.States
 
         private void BuildGameListUI()
         {
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_RIGHT, "btnJoin", "Join",50);
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_RIGHT, "btnHost", "Host", 50);
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_RIGHT, "btnExit", "Exit", 50);
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_RIGHT, "btnJoin", "Join",50);
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_RIGHT, "btnHost", "Host", 50);
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_RIGHT, "btnExit", "Exit", 50);
         }
         void HostGameUI()
         {
@@ -53,10 +55,10 @@ namespace OpenMB.States
 
         private void BuildEscapeMenu()
         {
-            GameManager.Instance.trayMgr.destroyAllWidgets();
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_CENTER, "choose_side", "Choose Side", 200f);
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_CENTER, "choose_chara", "Choose Character", 200f);
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_CENTER, "exit_multiplayer", "Exit", 200f);
+            UIManager.Instance.DestroyAllWidgets();
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_CENTER, "choose_side", "Choose Side", 200f);
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_CENTER, "choose_chara", "Choose Character", 200f);
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_CENTER, "exit_multiplayer", "Exit", 200f);
             this.isEscapeMenuOpened = true;
         }
         #endregion
@@ -86,41 +88,12 @@ namespace OpenMB.States
                 }
                 else
                 {
-                    GameManager.Instance.trayMgr.destroyAllWidgets();
-                    this.serverpanel = GameManager.Instance.trayMgr.createParamsPanel(TrayLocation.TL_CENTER, "serverpanel", 400f, this.serverState);
+                    UIManager.Instance.DestroyAllWidgets();
+                    this.serverpanel = UIManager.Instance.CreateParamsPanel(UIWidgetLocation.TL_CENTER, "serverpanel", 400f, this.serverState);
                     this.isEscapeMenuOpened = false;
                 }
             }
             return true;
-        }
-
-        public override void buttonHit(Button button)
-        {
-            if (button.getName() == "btnJoin")
-            {
-            }
-            else if (button.getName() == "btnHost")
-            {
-            }
-            else if (button.getName() == "btnCancel")
-            {
-                exit();
-                enter();
-            }
-            else if (button.getName() == "btnOK")
-            {
-
-                thisServer = new GameServer();
-                thisServer.OnEscapePressed += new Action(Server_OnEscapePressed);
-                GameManager.Instance.trayMgr.destroyAllWidgets();
-                serverpanel=GameManager.Instance.trayMgr.createParamsPanel(TrayLocation.TL_CENTER, "serverpanel", 400, serverState);
-                ServerStartDelegate server = new ServerStartDelegate(ServerStart);
-                server.Invoke();
-            }
-            else if (button.getName() == "btnExit")
-            {
-                changeAppState(findByName("MainMenu"), modData);
-            }
         }
 
         public bool ServerStart()
@@ -141,7 +114,7 @@ namespace OpenMB.States
                 thisServer.Update();
                 thisServer.GetServerState(ref serverState);
                 if(!isEscapeMenuOpened)
-                    serverpanel.setAllParamValues(serverState);
+                    serverpanel.SetAllParamValues(serverState);
             }
         }
 
@@ -156,10 +129,6 @@ namespace OpenMB.States
             {
                 thisServer.Exit();
             }
-        }
-
-        public override void checkBoxToggled(CheckBox box)
-        {
         }
     }
 }

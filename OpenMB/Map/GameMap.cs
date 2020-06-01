@@ -15,6 +15,7 @@ using System.Linq;
 using System.Text;
 using OpenMB.Game.ControlObjType;
 using System.IO;
+using OpenMB.Mods.XML;
 
 namespace OpenMB.Map
 {
@@ -25,11 +26,7 @@ namespace OpenMB.Map
     /// </summary>
     public class GameMap : IGameMap
     {
-        private string mapName;
-        private IGameMapLoader loader;
-        private Dictionary<string, List<GameObject>> gameObjects;
         private List<ActorNode> actorNodeList;
-        private ScriptLoader scriptLoader;
         private SceneManager sceneManager;
         //private TerrainGroup terrianGroup;
         private Scene physicsScene;
@@ -37,19 +34,27 @@ namespace OpenMB.Map
         private ModData modData;
         private Physics physics;
         private ControllerManager controllerMgr;
-        private Player player;
-        private Character playerAgent;
         private Camera camera;
-        private CameraHandler cameraHanlder;
-        private GameWorld world;
-        private AIMesh aimesh;
-        private List<Mogre.Vector3> aimeshVertexData;
-        private List<Mogre.Vector3> aimeshIndexData;
-        private GameMapEditor editor;
+
         private bool combineKey;
         private KeyCode combineKeyCode;
+		private string mapName;
+		private GameWorld world;
+		private Dictionary<string, List<GameObject>> gameObjects;
+		private IGameMapLoader loader;
+		private ScriptLoader scriptLoader;
+		private CameraHandler cameraHanlder;
+		private GameMapEditor editor;
+		private List<GameTeam> teams;
+		private string logicScriptFile;
+		private List<GameMapEntryPoint> mapEntryPoints;
+		private AIMesh aimesh;
+		private List<Mogre.Vector3> aimeshVertexData;
+		private List<Mogre.Vector3> aimeshIndexData;
+		private Player player;
+		private Character playerAgent;
 
-        public string Name
+		public string Name
         {
             get
             {
@@ -139,7 +144,13 @@ namespace OpenMB.Map
 
         public event MapLoadhandler LoadMapStarted;
         public event MapLoadhandler LoadMapFinished;
-        public GameMap(GameWorld world, IGameMapLoader loader)
+        public GameMap(
+			GameWorld world, 
+			List<GameMapEntryPoint> mapEntryPoints, 
+			List<GameTeam> teams, 
+			string logicScriptFile,
+			IGameMapLoader loader
+		)
         {
             scriptLoader = new ScriptLoader();
             actorNodeList = new List<ActorNode>();
@@ -160,11 +171,23 @@ namespace OpenMB.Map
             gameObjects = new Dictionary<string, List<GameObject>>();
             combineKey = false;
 
-            GameManager.Instance.mouse.MouseMoved += Mouse_MouseMoved;
+			this.mapEntryPoints = mapEntryPoints;
+			this.teams = teams;
+			this.logicScriptFile = logicScriptFile;
+
+            InitSkyBoxByTime();
+
+			GameManager.Instance.mouse.MouseMoved += Mouse_MouseMoved;
             GameManager.Instance.mouse.MousePressed += Mouse_MousePressed;
             GameManager.Instance.mouse.MouseReleased += Mouse_MouseReleased;
             GameManager.Instance.keyboard.KeyPressed += Keyboard_KeyPressed;
             GameManager.Instance.keyboard.KeyReleased += Keyboard_KeyReleased;
+
+        }
+
+        private void InitSkyBoxByTime()
+        {
+            sceneManager.SetSkyBox(true, world.GetSkyboxMaterialByTime(TimerManager.Instance.CurrentTime));
         }
 
         private void Loader_LoadMapFinished()
@@ -172,7 +195,7 @@ namespace OpenMB.Map
             aimesh = new AIMesh();
             gameObjects = new Dictionary<string, List<GameObject>>();
 
-            var file = scriptLoader.Parse(Path.GetFileNameWithoutExtension(loader.LoadedMapName)+".script", ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
+            var file = scriptLoader.Parse(logicScriptFile, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
             scriptLoader.ExecuteFunction(file, "map_loaded", world);
             
             TriggerManager.Instance.Init(world, scriptLoader.currentContext);
@@ -185,27 +208,7 @@ namespace OpenMB.Map
         public void LoadMap(string name)
         {
             mapName = name;
-            loader.LoadAsync(sceneManager, mapName);
-        }
-
-        public void LoadWorldMap(string name, string file)
-        {
-            var mesh = Connector.MBOgre.Instance.LoadWorldMap(
-                name, sceneManager,
-                FileFormats.MBWorldMap.ParseXml(
-                    GameMapManager.Instance.FindPath(file)
-                )
-            );
-            if (sceneManager.HasEntity("CURRENT_WORLDMAP"))
-            {
-                sceneManager.DestroyEntity("CURRENT_WORLDMAP");
-            }
-            if (sceneManager.HasSceneNode("CURRENT_WORLDMAP_SCENENODE"))
-            {
-                sceneManager.DestroySceneNode("CURRENT_WORLDMAP_SCENENODE");
-            }
-            var worldmapEnt = sceneManager.CreateEntity("CURRENT_WORLDMAP", "WORLDMAP-" + name);
-            sceneManager.RootSceneNode.CreateChildSceneNode("CURRENT_WORLDMAP_SCENENODE").AttachObject(worldmapEnt);
+            loader.LoadAsync(this, mapName);
         }
 
         public Entity CreateEntityWithMaterial(string name, string entityMeshName, string materialName)
@@ -219,23 +222,6 @@ namespace OpenMB.Map
                 subEnt.SetMaterialName(materialName);
             }
             return ent;
-        }
-
-
-        public Item CreateItem(
-            string desc, 
-            string meshName, 
-            ItemType type, 
-            ItemUseAttachOption attachOptionWhenUse, 
-            ItemHaveAttachOption attachOptionWhenHave, 
-            double damage, 
-            int range, 
-            GameWorld world, 
-            int ammoCapcity, 
-            double amourNum)
-        {
-            return ItemFactory.Instance.Produce(gameObjects.Count, desc, meshName, type, attachOptionWhenUse,
-                   attachOptionWhenHave, damage, range, world, ammoCapcity, amourNum);
         }
 
         /// <summary>
@@ -253,33 +239,31 @@ namespace OpenMB.Map
                 GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid trooper id!", LogMessage.LogType.Warning);
                 return;
             }
-            var findTrooper = findTrooperList.First();
+            var chaData = findTrooperList.First();
 
-            var findSkinList = ModData.SkinInfos.Where(o => o.skinID == findTrooper.SkinID);
+            var findSkinList = ModData.SkinInfos.Where(o => o.ID == chaData.Skin);
             if (findSkinList.Count() == 0)
             {
                 GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid skin id!", LogMessage.LogType.Warning);
                 return;
             }
-            var findSkin = findSkinList.First();
+            var chaSkin = findSkinList.First();
 
-            int characterInstanceID = -1;
+            int chaInstanceID = -1;
             if (gameObjects.ContainsKey("AGENTS"))
             {
-                characterInstanceID = gameObjects["AGENTS"].Count;
+                chaInstanceID = gameObjects["AGENTS"].Count;
             }
             else
             {
-                characterInstanceID = 0;
+                chaInstanceID = 0;
                 gameObjects.Add("AGENTS", new List<GameObject>());
             }
 
-            Character character = new Character(
-                world, characterInstanceID, teamId,
-                findTrooper.Name,
-                findTrooper.MeshName,
-                position, findSkin, true);
-            gameObjects["AGENTS"].Add(character);
+            Character character = new Character(world, chaData, chaSkin, position, isBot);
+			character.ID = chaInstanceID;
+			character.TeamId = teamId;
+			gameObjects["AGENTS"].Add(character);
         }
         
         /// <summary>
@@ -296,82 +280,89 @@ namespace OpenMB.Map
                 GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid trooper id!", LogMessage.LogType.Warning);
                 return;
             }
-            var findTrooper = findTrooperList.First();
+            var chaData = findTrooperList.First();
 
-            var findSkinList = ModData.SkinInfos.Where(o => o.skinID == findTrooper.SkinID);
+            var findSkinList = ModData.SkinInfos.Where(o => o.ID == chaData.Skin);
             if (findSkinList.Count() == 0)
             {
                 GameManager.Instance.log.LogMessage("CREATE TROOP FAILED: Invalid skin id!", LogMessage.LogType.Warning);
                 return;
             }
-            var findSkin = findSkinList.First();
+            var chaSkin = findSkinList.First();
             
-            int characterInstanceID = -1;
+            int chaInstanceID = -1;
             if (gameObjects.ContainsKey("AGENTS"))
             {
-                characterInstanceID = gameObjects["AGENTS"].Count;
+                chaInstanceID = gameObjects["AGENTS"].Count;
             }
             else
             {
-                characterInstanceID = 0;
+                chaInstanceID = 0;
                 gameObjects.Add("AGENTS", new List<GameObject>());
             }
 
-            Character character = new Character(
-                world, characterInstanceID, teamId,
-                findTrooper.Name,
-                findTrooper.MeshName,
-                position, findSkin, false);
+            Character character = new Character(world ,chaData ,chaSkin, position, false);
+			character.ID = chaInstanceID;
+			character.TeamId = teamId;
             if (player != null)
             {
                 GameManager.Instance.log.LogMessage("TRY TO ASSIGN TROOPER AS PLAYER FAILED: There is already a player assigned!", LogMessage.LogType.Warning);
                 return;
             }
-            player = new Player(findTrooper.Name, character.ID, new ControlObjectTypeCharacter(character));
+            player = new Player(chaData.Name, chaData.ID, new ControlObjectTypeCharacter(character));
             gameObjects[characterTypeID].Add(character);
         }
 
         /// <summary>
         /// Create a static scene prop
         /// </summary>
-        /// <param name="scenePropID"></param>
+        /// <param name="scenePropTypeID"></param>
         /// <param name="position"></param>
         /// <returns></returns>
-        public string CreateSceneProp(string scenePropID, Mogre.Vector3 position)
+        public string CreateSceneProp(string scenePropTypeID, Mogre.Vector3 position)
         {
-            var findSceneProps = modData.SceneProps.Where(o => o.ID == scenePropID);
-            if (findSceneProps.Count() > 0)
-            {
-                var findSceneProp = findSceneProps.ElementAt(0);
-                var findModelTypes = modData.ModModelTypes.Where(o => o.Name == findSceneProp.ModelType);
-                if (findModelTypes.Count() > 0)
-                {
-                    var findModelType = findModelTypes.ElementAt(0);
-                    object[] MeshMaterialArray = findModelType.Process(modData, findSceneProp.Model) as object[];
-                    Item attachedItem = null;
-                    if (MeshMaterialArray.Length == 3)
-                    {
-                        attachedItem = MeshMaterialArray[2] as Item;
-                    }
-                    SceneProp sceneProp = new SceneProp(
-                        gameObjects.Count,
-                        world,
-                        findSceneProp.Name,
-                        MeshMaterialArray[0].ToString(), 
-                        MeshMaterialArray[1].ToString(), 
-                        position,
-                        null
-                    );
-                    if (!gameObjects.ContainsKey(scenePropID))
-                    {
-                        gameObjects.Add(scenePropID, new List<GameObject>());
-                    }
-                    gameObjects[scenePropID].Add(sceneProp);
-                    string guidStr = Guid.NewGuid().ToString();
-                    sceneProp.SetID(guidStr);
-                    return guidStr;
-                }
-            }
+            var findSceneProp = modData.ScenePropInfos.Where(o => o.ID == scenePropTypeID).FirstOrDefault();
+			if (findSceneProp != null)
+			{
+				SceneProp sceneProp = new SceneProp(world, findSceneProp, position);
+				if (findSceneProp.Combined)
+				{
+					foreach (var modelData in findSceneProp.Models)
+					{
+						var findModelType = modData.ModModelTypes.Where(o => o.Name == modelData.ModelType).FirstOrDefault();
+						if (findModelType != null)
+						{
+							var findedModel = modData.ModelInfos.Where(o => o.ID == modelData.ModelID).FirstOrDefault();
+							if (findedModel != null)
+							{
+								findedModel.ModelType = findModelType;
+								sceneProp.AppendChildModelData(findedModel);
+							}
+						}
+					}
+				}
+				else
+				{
+					var findModelType = modData.ModModelTypes.Where(o => o.Name == findSceneProp.Models[0].ModelType).FirstOrDefault();
+					if (findModelType != null)
+					{
+						var findedModel = modData.ModelInfos.Where(o => o.ID == findSceneProp.Models[0].ModelID).FirstOrDefault();
+						if (findedModel != null)
+						{
+							findedModel.ModelType = findModelType;
+							sceneProp.AppendChildModelData(findedModel);
+						}
+					}
+				}
+				if (!gameObjects.ContainsKey(scenePropTypeID))
+				{
+					gameObjects.Add(scenePropTypeID, new List<GameObject>());
+				}
+				gameObjects[scenePropTypeID].Add(sceneProp);
+				sceneProp.ID = gameObjects[scenePropTypeID].Count;
+				sceneProp.Spawn();
+				return sceneProp.ID.ToString();
+			}
             return null;
         }
 
@@ -382,54 +373,29 @@ namespace OpenMB.Map
         /// <param name="position"></param>
         public void CreatePlayerSceneProp(string scenePropID, Mogre.Vector3 position)
         {
-            var findSceneProps = modData.SceneProps.Where(o => o.ID == scenePropID);
-            if (findSceneProps.Count() > 0)
-            {
-                var findSceneProp = findSceneProps.ElementAt(0);
-                var findModelTypes = modData.ModModelTypes.Where(o => o.Name == findSceneProp.ModelType);
-                if (findModelTypes.Count() > 0)
-                {
-                    var findModelType = findModelTypes.ElementAt(0);
-                    object[] MeshMaterialArray = findModelType.Process(modData, findSceneProp.Model) as object[];
-                    Item attachedItem = null;
-                    if (MeshMaterialArray.Length == 3)
-                    {
-                        attachedItem = MeshMaterialArray[2] as Item;
-                    }
-                    SceneProp sceneProp = new SceneProp(
-                        gameObjects.Count,
-                        world,
-                        findSceneProp.Name,
-                        MeshMaterialArray[0].ToString(),
-                        MeshMaterialArray[1].ToString(),
-                        position,
-                        attachedItem
-                    );
-                    if (!gameObjects.ContainsKey(scenePropID))
-                    {
-                        gameObjects.Add(scenePropID, new List<GameObject>());
-                    }
-                    
-                    string guidStr = Guid.NewGuid().ToString();
-                    sceneProp.SetID(guidStr);
-                    player = new Player(findSceneProp.Name, guidStr, new ControlObjectTypeSceneProp(sceneProp));
-                }
-            }
         }
 
-        public SceneProp GetSceneProp(string propInstanceID)
+        public SceneProp GetSceneProp(string scenePropTypeID, int propInstanceID)
         {
-            foreach (var gameObj in gameObjects)
-            {
-                foreach (var gameObjInstance in gameObj.Value)
-                {
-                    if (gameObjInstance.ID == propInstanceID)
-                    {
-                        return gameObjInstance as SceneProp;
-                    }
-                }
-            }
-            return null;
+			if (gameObjects.ContainsKey(scenePropTypeID))
+			{
+				return gameObjects[scenePropTypeID].ElementAt(propInstanceID) as SceneProp;
+			}
+			else
+			{
+				return null;
+			}
+            //foreach (var gameObj in gameObjects)
+            //{
+            //    foreach (var gameObjInstance in gameObj.Value)
+            //    {
+            //        if (gameObjInstance.ID == propInstanceID)
+            //        {
+            //            return gameObjInstance as SceneProp;
+            //        }
+            //    }
+            //}
+            //return null;
         }
 
         public int GetScenePropNum(string scenePropID)
@@ -437,9 +403,9 @@ namespace OpenMB.Map
             return gameObjects.ContainsKey(scenePropID) ? gameObjects[scenePropID].Count : -1;
         }
 
-        public void RemoveSceneProp(string propInstanceID)
+        public void RemoveSceneProp(string propTypeID, int propInstanceID)
         {
-            SceneProp prop = GetSceneProp(propInstanceID);
+            SceneProp prop = GetSceneProp(propTypeID, propInstanceID);
             if (prop != null)
             {
                 prop.Dispose();
@@ -463,7 +429,7 @@ namespace OpenMB.Map
         /// <param name="propInstanceID">Scene Prop ID</param>
         /// <param name="axis">Axis 0 - X, 1 - Y, 2 - Z</param>
         /// <param name="movement">movement</param>
-        public void MoveSceneProp(string propInstanceID, int axis, int movement)
+        public void MoveSceneProp(string scenePropTypeID, int propInstanceID, int axis, int movement)
         {
             Mogre.Vector3 mov = new Mogre.Vector3();
             switch (axis)
@@ -478,7 +444,7 @@ namespace OpenMB.Map
                     mov.z = movement;
                     break;
             }
-            SceneProp prop = GetSceneProp(propInstanceID);
+            SceneProp prop = GetSceneProp(scenePropTypeID, propInstanceID);
             if (prop != null)
             {
                 prop.Move(mov);
@@ -508,27 +474,27 @@ namespace OpenMB.Map
             gameObjects["PLANE"].Add(plane);
         }
 
-        public string GetScenePropInstanceID(string scenePropID, int scenePropInstanceNum)
+        public string GetScenePropInstanceID(string scenePropTypeID, int scenePropInstanceIdx)
         {
-            if (scenePropInstanceNum < 0)
+            if (scenePropInstanceIdx < 0)
             {
-                return null;
+                return "-1";
             }
-            if (gameObjects.ContainsKey(scenePropID))
+            if (gameObjects.ContainsKey(scenePropTypeID))
             {
-                if (gameObjects[scenePropID].Count > scenePropInstanceNum)
+                if (gameObjects[scenePropTypeID].Count > scenePropInstanceIdx)
                 {
-                    return (gameObjects[scenePropID].ElementAt(scenePropInstanceNum) as SceneProp).ID;
+                    return (gameObjects[scenePropTypeID].ElementAt(scenePropInstanceIdx) as SceneProp).ID.ToString();
                 }
                 else
-                {
-                    return null;
-                }
+				{
+					return "-1";
+				}
             }
             else
-            {
-                return null;
-            }
+			{
+				return "-1";
+			}
         }
 
         public void RemoveAgent(GameObject owner)
@@ -572,9 +538,7 @@ namespace OpenMB.Map
                     {
                         break;
                     }
-                    ScreenManager.Instance.ChangeScreen("Inventory", false, playerAgent.MeshName, new string[]{
-                        playerAgent.GetIdleTopAnim(), playerAgent.GetIdleBaseAnim()
-                    });
+                    ScreenManager.Instance.ChangeScreen("Inventory", false, world, playerAgent.TypeID);
                     break;
                 default:
                     if (playerAgent != null)
@@ -602,7 +566,6 @@ namespace OpenMB.Map
         private bool Keyboard_KeyReleased(KeyEvent arg)
         {
             combineKey = false;
-            ScreenManager.Instance.InjectKeyReleased(arg);
 
             if (playerAgent != null)
             {
@@ -619,7 +582,7 @@ namespace OpenMB.Map
         {
             if (ScreenManager.Instance.CheckEnterScreen(new Vector2(arg.state.X.abs, arg.state.Y.abs)))
             {
-                ScreenManager.Instance.InjectMouseMove(arg);
+                //ScreenManager.Instance.InjectMouseMove(arg);
             }
             else if (playerAgent == null)
             {
@@ -632,7 +595,7 @@ namespace OpenMB.Map
         {
             if (ScreenManager.Instance.CheckHasScreen())
             {
-                ScreenManager.Instance.InjectMouseReleased(arg, id);
+                //ScreenManager.Instance.InjectMouseReleased(arg, id);
             }
             else
             {
@@ -645,7 +608,7 @@ namespace OpenMB.Map
         {
             if (ScreenManager.Instance.CheckHasScreen())
             {
-                ScreenManager.Instance.InjectMousePressed(arg, id);
+                //ScreenManager.Instance.InjectMousePressed(arg, id);
             }
             else
             {

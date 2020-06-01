@@ -16,6 +16,10 @@ namespace OpenMB.Trigger
         private List<ScriptTrigger> triggerExecuteQueue;
         private List<ScriptTrigger> triggerForzenQueue;
         private static TriggerManager instance;
+
+        private ScriptFile attachedScriptFile;
+        private Dictionary<string, List<string>> hookedScriptFunctions;
+
         private GameWorld world;
         public static TriggerManager Instance
         {
@@ -34,6 +38,9 @@ namespace OpenMB.Trigger
             triggerDelayQueue = new List<ScriptTrigger>();
             triggerExecuteQueue = new List<ScriptTrigger>();
             triggerForzenQueue = new List<ScriptTrigger>();
+
+            attachedScriptFile = null;
+            hookedScriptFunctions = new Dictionary<string, List<string>>();
         }
 
         public void Init(GameWorld world, ScriptContext context)
@@ -103,6 +110,46 @@ namespace OpenMB.Trigger
             }
         }
 
+        public void HookTriggerFunction(string triggerEvent, string functionName)
+        {
+            if (attachedScriptFile != null &&
+                attachedScriptFile.Context.GetFunction(functionName) != null)
+            {
+                if (hookedScriptFunctions.ContainsKey(triggerEvent))
+                {
+                    if (!hookedScriptFunctions[triggerEvent].Contains(functionName))
+                    {
+                        hookedScriptFunctions[triggerEvent].Add(functionName);
+                    }
+                }
+                else
+                {
+                    hookedScriptFunctions.Add(triggerEvent, new List<string>() { functionName });
+                }
+            }
+        }
+
+        public void TrigEvent(string triggerEvent, params object[] executeArgs)
+        {
+            if (attachedScriptFile != null)
+            {
+                if (!hookedScriptFunctions.ContainsKey(triggerEvent))
+                {
+                    hookedScriptFunctions.Add(triggerEvent, new List<string>());
+                    return;
+                }
+                List<string> hookedFunctionNames = hookedScriptFunctions[triggerEvent];
+                for (int i = 0; i < hookedFunctionNames.Count; i++)
+                {
+                    var func = attachedScriptFile.Context.GetFunction(hookedFunctionNames[i]);
+                    if (func != null)
+                    {
+                        func.Execute(executeArgs);
+                    }
+                }
+            }
+        }
+
         private void Trigger_ExecuteCompleted(ScriptTrigger trigger)
         {
             triggerExecuteQueue.Remove(trigger);
@@ -118,5 +165,12 @@ namespace OpenMB.Trigger
                 trigger.Execute(world, gameObjInstance.ID, gameObjInstance2.ID);
             }
         }
+
+		public void Exit()
+		{
+			triggerDelayQueue.Clear();
+			triggerExecuteQueue.Clear();
+			triggerForzenQueue.Clear();
+		}
     }
 }

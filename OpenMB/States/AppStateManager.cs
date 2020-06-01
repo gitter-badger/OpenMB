@@ -7,6 +7,7 @@ using MOIS;
 using Mogre_Procedural.MogreBites;
 using OpenMB.Mods;
 using OpenMB.Localization;
+using OpenMB.Widgets;
 
 namespace OpenMB.States
 {
@@ -43,7 +44,7 @@ namespace OpenMB.States
              isShutdown = false;
          }
 
-          public override void manageAppState(String stateName, AppState state)
+         public override void manageAppState(String stateName, AppState state)
          {
 		        state_info new_state_info;
 		        new_state_info.name = stateName;
@@ -182,7 +183,7 @@ namespace OpenMB.States
 
          protected void init(AppState state)
          {
-             GameManager.Instance.trayMgr.setListener(state);
+             UIManager.Instance.SetListener(state);
              GameManager.Instance.renderWindow.ResetStatistics();
          }
 

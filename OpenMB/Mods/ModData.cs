@@ -7,13 +7,17 @@ using OpenMB.Mods.XML;
 using OpenMB.Sound;
 using OpenMB.Game.ItemTypes;
 using OpenMB.Map;
+using System.Reflection;
+using OpenMB.Localization;
 
 namespace OpenMB.Mods
 {
     public class ModData
     {
+		private List<Assembly> assemblies;
         private ModBaseInfo modBasicInfo;
-        private List<ModCharacterDfnXML> characterInfos;
+		private List<ModAnimationDfnXml> animationInfos;
+		private List<ModCharacterDfnXML> characterInfos;
         private List<ModItemDfnXML> itemInfos;
         private List<ModTrackDfnXML> musicInfos;
         private List<ModSoundDfnXML> soundInfos;
@@ -24,9 +28,14 @@ namespace OpenMB.Mods
         private List<ModLocationDfnXml> locationInfos;
         private List<ModSkeletonDfnXML> skeletonInfos;
 		private List<ModMenuDfnXml> menuInfos;
-		private List<ModMediaData> modMediaData;
+		private List<ModUILayoutDfnXml> uiLayoutInfos;
+		private List<ModStringDfnXml> stringInfos;
+		private List<ModCursorDfnXml> cursorInfos;
+		private List<ModMapTemplateDfnXml> mapTemplateInfos;
+        private List<ModVehicleDfnXml> vehicleInfos;
+        private List<ModMediaData> modMediaData;
 
-        public bool HasSinglePlayer { get; set; }
+		public bool HasSinglePlayer { get; set; }
         public bool HasMultiplater { get; set; }
         public bool HasCredit { get; set; }
         public bool HasSavedGame { get; set; }
@@ -44,8 +53,13 @@ namespace OpenMB.Mods
         {
             get { return modBasicInfo; }
             set { modBasicInfo = value; }
-        }
-        public List<ModSideDfnXML> SideInfos
+		}
+		public List<ModAnimationDfnXml> AnimationInfos
+		{
+			get { return animationInfos; }
+			set { animationInfos = value; }
+		}
+		public List<ModSideDfnXML> SideInfos
         {
             get { return sideInfos; }
             set { sideInfos = value; }
@@ -104,17 +118,52 @@ namespace OpenMB.Mods
         {
             get { return skeletonInfos; }
             set { skeletonInfos = value; }
+		}
+		public List<ModStringDfnXml> StringInfos
+		{
+			get { return stringInfos; }
+			set { stringInfos = value; }
+		}
+		public List<ModUILayoutDfnXml> UILayoutInfos
+		{
+			get { return uiLayoutInfos; }
+			set { uiLayoutInfos = value; }
+		}
+		public List<ModCursorDfnXml> CursorInfos
+		{
+			get { return cursorInfos; }
+			set { cursorInfos = value; }
+		}
+		public List<ModMapTemplateDfnXml> MapTemplateInfos
+		{
+			get { return mapTemplateInfos; }
+			set { mapTemplateInfos = value; }
+        }
+
+        public List<ModVehicleDfnXml> VehicleInfos
+        {
+            get { return vehicleInfos; }
+            set { vehicleInfos = value; }
         }
 
         public List<ModItemTypeDfnXml> ItemTypeInfos { get; set; }
 
-        public List<ModScenePropDfnXml> SceneProps { get; set; }
-        public List<ModModelDfnXml> Models { get; set; }
+        public List<ModScenePropDfnXml> ScenePropInfos { get; set; }
+        public List<ModModelDfnXml> ModelInfos { get; set; }
         public List<IItemType> ItemTypes { get; set; }
 
         public List<ModMediaData> ModMediaData { get { return modMediaData; } }
 
-        public ModData()
+		public List<IModStartupBackgroundType> StartupBackgroundTypes { get; set; }
+		public List<Assembly> Assemblies
+		{
+			get
+			{
+				return assemblies;
+			}
+		}
+
+		public ModData()
         {
             characterInfos = new List<ModCharacterDfnXML>();
             itemInfos = new List<ModItemDfnXML>();
@@ -129,6 +178,8 @@ namespace OpenMB.Mods
             ItemTypeInfos = new List<ModItemTypeDfnXml>();
 			menuInfos = new List<ModMenuDfnXml>();
 			modMediaData = new List<ModMediaData>();
+			cursorInfos = new List<ModCursorDfnXml>();
+            vehicleInfos = new List<ModVehicleDfnXml>();
 
 			HasSinglePlayer = true;
             HasMultiplater = true;
@@ -140,7 +191,10 @@ namespace OpenMB.Mods
             ModTriggerConditions = new List<IModTriggerCondition>();
             ItemTypes = new List<IItemType>();
             MapLoaders = new List<IGameMapLoader>();
-        }
+			StartupBackgroundTypes = new List<IModStartupBackgroundType>();
+
+            assemblies = new List<Assembly>();
+		}
 
         public ModItemTypeDfnXml FindItemType(string itemType)
         {

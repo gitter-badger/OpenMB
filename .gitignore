@@ -13,7 +13,6 @@ Debug/*
 *.Cache
 *.FileListAbsolute.txt
 *.resources
-*.cfg
 *.cs.dll
 *.bi
 *.metagen
@@ -30,7 +29,6 @@ game.xml
 .vs/*
 
 *.brf
-*.dds
 *.tga
 *.ogg
 *.wav
@@ -38,3 +36,4 @@ game.xml
 *.flac
 *.fxo
 *.pp
+/Bin/app.ico

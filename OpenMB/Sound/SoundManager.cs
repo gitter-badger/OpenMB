@@ -9,6 +9,7 @@ using Mogre;
 using MogreFreeSL;
 using System.IO;
 using System.Threading;
+using OpenMB.Mods;
 
 namespace OpenMB.Sound
 {
@@ -18,7 +19,7 @@ namespace OpenMB.Sound
         Playing,
         Paused
     }
-    public class SoundManager : IDisposable
+    public class SoundManager : IDisposable, IInitializeMod
     {
         private MogreFreeSL.SoundManager soundEngine;
         private List<GameSound> musicLst;
@@ -78,11 +79,10 @@ namespace OpenMB.Sound
             this.hasSound = hasSound;
         }
         
-        public bool InitSound(Camera cam, Mods.ModData modData)
+        public bool InitSound(Camera cam)
         {
             try
             {
-                this.modData = modData;
                 if (!hasMusic && !hasSound)
                 {
                     return false;
@@ -93,7 +93,7 @@ namespace OpenMB.Sound
                 foreach (var track in tracks)
                 {
                     GameSound music = new GameSound();
-                    music.AddSound(soundEngine.CreateAmbientSound(findMusicFileByID(track.Id), track.Id, true, false));
+                    music.AddSound(soundEngine.CreateAmbientSound(findMusicFileByID(track.ID), track.ID, true, false));
                     music.PlayType = track.PlayType;
                     musicLst.Add(music);
                 }
@@ -125,17 +125,17 @@ namespace OpenMB.Sound
             }
         }
 
-        public void PlayMusicByType(SoundType soundType)
+        public void PlayMusicByType(PlayType soundType)
         {
             if (hasMusic)
             {
                 var ret = musicLst.Where(o => o.PlayType == soundType);
                 switch (soundType)
                 {
-                    case SoundType.MainMenu:
+                    case PlayType.MainMenu:
                         ret.ElementAt(0).Play();
                         break;
-                    case SoundType.Scene:
+                    case PlayType.Scene:
                         Thread sceneMusicTh = new Thread(() =>
                         {
                             Random rk = new Random();
@@ -215,7 +215,7 @@ namespace OpenMB.Sound
         {
             string musicfile = string.Empty;
             var result = from musicDfn in modData.MusicInfos
-                         where musicDfn.Id == musicID
+                         where musicDfn.ID == musicID
                          select musicDfn;
             if (result.Count() == 1)
             {
@@ -251,7 +251,7 @@ namespace OpenMB.Sound
         {
             string soundFile = string.Empty;
             var result = from soundDfn in modData.SoundInfos
-                         where soundDfn.Id == soundID
+                         where soundDfn.ID == soundID
                          select soundDfn;
             if (result.Count() == 1)
             {
@@ -275,5 +275,10 @@ namespace OpenMB.Sound
                 return null;
             }
         }
-    }
+
+		public void InitMod(ModData modData)
+		{
+			this.modData = modData;
+		}
+	}
 }

@@ -4,14 +4,19 @@ using System.Linq;
 using System.Text;
 using MOIS;
 using Mogre;
+using Mogre_Procedural.MogreBites;
+using OpenMB.Widgets;
 
 namespace OpenMB.Screen
 {
     public class Screen : IScreen
-    {
-        protected bool isExiting;
+	{
+        protected List<Widget> widgets;
+		protected bool isExiting;
+		public virtual event Action OnScreenExit;
+		public virtual event Action<string, string> OnScreenEventChanged;
 
-        public virtual bool IsVisible
+		public virtual bool IsVisible
         {
             get
             {
@@ -27,9 +32,14 @@ namespace OpenMB.Screen
             }
         }
 
-        public virtual event Action OnScreenExit;
+        public List<Widget> UIWidgets { get { return widgets; } }
 
-        public virtual bool CheckEnterScreen(Vector2 mousePos)
+        public Screen()
+		{
+            widgets = new List<Widget>();
+		}
+
+		public virtual bool CheckEnterScreen(Vector2 mousePos)
         {
             return false;
         }
@@ -58,25 +68,47 @@ namespace OpenMB.Screen
         }
 
         public virtual void InjectKeyPressed(KeyEvent arg)
-        {
-        }
+		{
+			var uiEvent = UIManager.Instance.InjectKeyPressed(arg);
+			if (uiEvent != null)
+			{
+				OnScreenEventChanged?.Invoke(uiEvent.WidgetName, uiEvent.EventValue);
+			}
+		}
 
         public virtual void InjectKeyReleased(KeyEvent arg)
         {
-        }
+			var uiEvent = UIManager.Instance.InjectKeyReleased(arg);
+			if (uiEvent != null)
+			{
+				OnScreenEventChanged?.Invoke(uiEvent.WidgetName, uiEvent.EventValue);
+			}
+		}
 
         public virtual void InjectMouseMove(MouseEvent arg)
         {
-            GameManager.Instance.trayMgr.injectMouseMove(arg);
-        }
+			var uiEvent = UIManager.Instance.InjectMouseMove(arg);
+			if (uiEvent != null)
+			{
+				OnScreenEventChanged?.Invoke(uiEvent.WidgetName, uiEvent.EventValue);
+			}
+		}
         public virtual void InjectMousePressed(MouseEvent arg, MouseButtonID id)
         {
-            GameManager.Instance.trayMgr.injectMouseDown(arg, id);
-        }
+			var uiEvent = UIManager.Instance.InjectMouseDown(arg, id);
+			if (uiEvent != null)
+			{
+				OnScreenEventChanged?.Invoke(uiEvent.WidgetName, uiEvent.EventValue);
+			}
+		}
         public virtual void InjectMouseReleased(MouseEvent arg, MouseButtonID id)
         {
-            GameManager.Instance.trayMgr.injectMouseUp(arg, id);
-        }
+			var uiEvent = UIManager.Instance.InjectMouseUp(arg, id);
+			if (uiEvent != null)
+			{
+				OnScreenEventChanged?.Invoke(uiEvent.WidgetName, uiEvent.EventValue);
+			}
+		}
 
         public virtual void Run()
         {

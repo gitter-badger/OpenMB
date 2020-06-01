@@ -15,7 +15,7 @@ namespace OpenMB.Game
     /// <summary>
     /// Controller used by Character
     /// </summary>
-    public class CharacterController
+    public class CharacterController : GameMesh
     {
         private const int CHAR_HEIGHT = 5;      // height of character's center of mass above ground
         private const int CAM_HEIGHT = 2;          // height of camera above character's center of mass
@@ -24,14 +24,10 @@ namespace OpenMB.Game
         private const float ANIM_FADE_SPEED = 7.5f;   // animation crossfade speed in % of full weight per second
         private const float JUMP_ACCEL = 30.0f;       // character jump acceleration in upward units per squared second
         private const float GRAVITY = 90.0f;          // gravity in downward units per squared second
-        private SceneManager sceneMgr;
-        private Camera camera;
-        private SceneNode bodyNode;
         private SceneNode cameraPivot;
         private SceneNode cameraGoal;
         private SceneNode cameraNode;
         private float pivotPitch;
-        private Entity bodyEnt;
         private List<CharacterAnimation> anims = new List<CharacterAnimation>();    // master animation list
         private CharacterAnimation baseAnim;                   // current base (full- or lower-body) animation
         private CharacterAnimation topAnim;                    // current top (upper-body) animation
@@ -43,26 +39,28 @@ namespace OpenMB.Game
         private float timer;                // general timer to see how long animations have been playing
         private string charaMeshName;
         private bool controlled;
-        private NavmeshQuery query;
+        //private NavmeshQuery query;
         private Physics physics;
         private ControllerManager cotrollerManager;
         private Scene physicsScene;
         private Mogre.Vector3 direction;
-        private ModCharacterSkinDfnXML skin;
+        private ModCharacterDfnXML chaData;
+        private ModCharacterSkinDfnXML chaSkin;
         private CapsuleController physicsController;
         private Mogre.Vector3 lastPosition;
+		private GameWorld world;
 
         public SceneNode BodyNode
         {
             get { 
-                return bodyNode; 
+                return entityNode; 
             }
         }
         public Mogre.Vector3 Position
         {
             get
             {
-                return bodyNode.Position;
+                return entityNode.Position;
             }
         }
         public Mogre.Vector3 Direction
@@ -77,73 +75,57 @@ namespace OpenMB.Game
             }
         }
 
-        public enum AnimID
-        {
-            ANIM_IDLE_BASE,
-            ANIM_IDLE_TOP,
-            ANIM_RUN_BASE,
-            ANIM_RUN_TOP,
-            ANIM_HANDS_CLOSED,
-            ANIM_HANDS_RELAXED,
-            ANIM_DRAW_SWORDS,
-            ANIM_SLICE_VERTICAL,
-            ANIM_SLICE_HORIZONTAL,
-            ANIM_DANCE,
-            ANIM_JUMP_START,
-            ANIM_JUMP_LOOP,
-            ANIM_JUMP_END,
-            ANIM_NONE
-        };
-
         List<Entity> itemAttached;//Item that attached to character
 
-        public CharacterController(
-            Camera cam,
-            NavmeshQuery query,
-            Scene physicsScene,
-            string meshName, 
-            ModCharacterSkinDfnXML skin,
-            bool isBot,
-            Mogre.Vector3 initPosition)
-        {
-            camera = cam;
-            this.controlled = !isBot;
-            itemAttached = new List<Entity>();
-            this.sceneMgr = cam.SceneManager;
-            charaMeshName = meshName;
-            this.physicsScene = physicsScene;
-            physics = physicsScene.Physics;
-            cotrollerManager = physics.ControllerManager;
-            this.query = query;
-            setupBody(initPosition);
-            if (controlled)
-            {
-                setupCamera(cam);
-            }
+		public CharacterController(
+			GameWorld world,
+			ModCharacterDfnXML chaData,
+			ModCharacterSkinDfnXML chaSkin,
+			Mogre.Vector3 initPosition,
+			bool isBot = true) : base(world.Camera)
+		{
+			this.world = world;
+			controlled = !isBot;
+			itemAttached = new List<Entity>();
+			charaMeshName = chaSkin.Mesh;
+			physicsScene = world.PhysicsScene;
+			physics = physicsScene.Physics;
+			cotrollerManager = physics.ControllerManager;
+			this.chaData = chaData;
+			this.chaSkin = chaSkin;
 
-            this.skin = skin;
+			setupBody(initPosition);
+			if (controlled)
+			{
+				setupCamera(camera);
+			}
+			//setupAnimations();
+			setupPhysics();
+		}
 
-            setupAnimations();
-            setupPhysics();
-        }
-
-        /// <summary>
-        /// Create character body
-        /// </summary>
-        /// <returns>success return True, fail return False</returns>
-        private bool setupBody(Mogre.Vector3 initPosition)
+		/// <summary>
+		/// Create character body
+		/// </summary>
+		/// <returns>success return True, fail return False</returns>
+		private bool setupBody(Mogre.Vector3 initPosition)
         {
             try
             {
                 if (!string.IsNullOrEmpty(charaMeshName))
                 {
-                    bodyNode = sceneMgr.RootSceneNode.CreateChildSceneNode(Mogre.Vector3.UNIT_Y * CHAR_HEIGHT * initPosition.y);
-                    bodyEnt = sceneMgr.CreateEntity(Guid.NewGuid().ToString(), charaMeshName);
-                    bodyNode.AttachObject(bodyEnt);
-                    bodyNode.SetPosition(initPosition.x, bodyNode.Position.y, initPosition.z);
+                    entityNode = sceneManager.CreateSceneNode();
+					entityNode.Translate(Mogre.Vector3.UNIT_Y * CHAR_HEIGHT * initPosition.y);
+                    entity = sceneManager.CreateEntity(Guid.NewGuid().ToString(), charaMeshName);
+                    entityNode.AttachObject(entity);
+                    entityNode.SetPosition(initPosition.x, entityNode.Position.y, initPosition.z);
                     keyDirection = Mogre.Vector3.ZERO;
                     verticalVelocity = 0;
                     lastPosition = initPosition;
+
+                    entityNode.Pitch(new Radian(new Degree(chaSkin.OritentionOffset.x)));
+                    entityNode.Yaw(new Radian(new Degree(chaSkin.OritentionOffset.y)));
+                    entityNode.Roll(new Radian(new Degree(chaSkin.OritentionOffset.z)));
+
                     return true;
                 }
                 else
@@ -163,20 +145,27 @@ namespace OpenMB.Game
         /// </summary>
         private void setupAnimations()
         {
-            bodyEnt.Skeleton.BlendMode = SkeletonAnimationBlendMode.ANIMBLEND_CUMULATIVE;
+            entity.Skeleton.BlendMode = SkeletonAnimationBlendMode.ANIMBLEND_CUMULATIVE;
 
             // populate our animation list
-            for (int i = 0; i < skin.SkinAnimations.Count; i++)
+            for (int i = 0; i < chaSkin.SkinAnimations.Count; i++)
             {
-                var raceAnimation = skin.SkinAnimations[i];
-                AnimationState animState = null;
-                if (!string.IsNullOrEmpty(raceAnimation.Name))
+                var skinAnim = chaSkin.SkinAnimations[i];
+
+				var anim = world.ModData.AnimationInfos.Where(o => o.ID == skinAnim.AnimID).FirstOrDefault();
+				if (anim == null)
+				{
+					continue;
+				}
+
+				AnimationState animState = null;
+                if (!string.IsNullOrEmpty(skinAnim.AnimID))
                 {
-                    animState = bodyEnt.GetAnimationState(raceAnimation.Name);
+                    animState = entity.GetAnimationState(skinAnim.AnimID);
                     animState.Loop = true;
                 }
-                CharacterAnimation characterAnim = new CharacterAnimation(raceAnimation.Name, animState, raceAnimation.type);
-                anims.Add(characterAnim);
+                CharacterAnimation chaAnim = new CharacterAnimation(skinAnim.AnimID, animState, skinAnim.Type);
+                anims.Add(chaAnim);
                 bool fadingIn = false;
                 this.fadingIn.Add(fadingIn);
                 bool fadingOut = false;
@@ -184,11 +173,11 @@ namespace OpenMB.Game
             }
 
             // start off in the idle state (top and bottom together)
-            SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_BASE).First());
-            SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_TOP).First());
+            SetBaseAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_IDLE_BASE).First());
+            SetTopAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_IDLE_TOP).First());
 
             // relax the hands since we're not holding anything
-            anims.Where(o => o.Type == CharacterAnimationType.CAT_HANDS_RELAXED).First().AnimationState.Enabled = true;
+            anims.Where(o => o.Type == ChaAnimType.CAT_HANDS_RELAXED).First().AnimationState.Enabled = true;
 
             //swordsDrawn = false;
         }
@@ -222,9 +211,9 @@ namespace OpenMB.Game
         {
             Camera cam = (Camera)cameraNode.GetAttachedObjectIterator().ElementAt(0);
             cameraNode.DetachAllObjects();
-            sceneMgr.DestroySceneNode(cameraNode);
-            sceneMgr.DestroySceneNode(cameraGoal);
-            sceneMgr.DestroySceneNode(cameraPivot);
+            sceneManager.DestroySceneNode(cameraNode);
+            sceneManager.DestroySceneNode(cameraGoal);
+            sceneManager.DestroySceneNode(cameraPivot);
             cameraNode = null;
             cameraGoal = null;
             cameraPivot = null;
@@ -234,14 +223,14 @@ namespace OpenMB.Game
         private void setupPhysics()
         {
             CapsuleControllerDesc desc = new CapsuleControllerDesc();
-            desc.Position = bodyNode.Position;
+            desc.Position = entityNode.Position;
             desc.StepOffset = 0.01f;
             desc.SlopeLimit = 0.5f; // max slope the character can walk
             desc.Radius = 2.5f; //radius of the capsule
             desc.Height = CHAR_HEIGHT; //height of the controller
             desc.ClimbingMode = CapsuleClimbingModes.Easy;
             desc.UpDirection = HeightFieldAxes.Y; // Specifies the 'up' direction
-            desc.Position = bodyNode.Position;
+            desc.Position = entityNode.Position;
             physicsController = cotrollerManager.CreateController(physicsScene, desc);
             physicsController.Actor.Group = 3;
         }
@@ -255,9 +244,9 @@ namespace OpenMB.Game
         {
             if (itemEnt.IsAttached)
             {
-                bodyEnt.DetachObjectFromBone(itemEnt);
+                entity.DetachObjectFromBone(itemEnt);
             }
-            bodyEnt.AttachObjectToBone(boneName, itemEnt);
+            entity.AttachObjectToBone(boneName, itemEnt);
             itemAttached.Add(itemEnt);
         }
 
@@ -269,7 +258,7 @@ namespace OpenMB.Game
         {
             if (!itemEnt.IsAttached)
             {
-                bodyEnt.DetachObjectFromBone(itemEnt);
+                entity.DetachObjectFromBone(itemEnt);
                 itemAttached.Remove(itemEnt);
             }
         }
@@ -302,27 +291,21 @@ namespace OpenMB.Game
             else if (evt.key == KeyCode.KC_S) keyDirection.z = 1;
             else if (evt.key == KeyCode.KC_D) keyDirection.x = 1;
 
-            else if (evt.key == KeyCode.KC_SPACE && (topAnim.Type == CharacterAnimationType.CAT_IDLE_TOP || topAnim.Type == CharacterAnimationType.CAT_RUN_TOP))
+            else if (evt.key == KeyCode.KC_SPACE && (topAnim.Type == ChaAnimType.CAT_IDLE_TOP || topAnim.Type == ChaAnimType.CAT_RUN_TOP))
             {
                 // jump if on ground
-                SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_JUMP_START).First(), true);
-                SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_NONE).First());
+                SetBaseAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_JUMP_START).First(), true);
+                SetTopAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_NONE).First());
                 timer = 0;
             }
 
-            else if(evt.key == KeyCode.KC_C)
-            {
-                //Battle Cry
-                SoundManager.Instance.PlaySoundAtNode(bodyNode,"battle_cry_1");
-            }
-
-            if (!keyDirection.IsZeroLength && baseAnim.Type == CharacterAnimationType.CAT_IDLE_BASE)
+            if (!keyDirection.IsZeroLength && baseAnim.Type == ChaAnimType.CAT_IDLE_BASE)
             {
                 // start running if not already moving and the player wants to move
-                SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_BASE).First(), true);
-                if (topAnim.Type == CharacterAnimationType.CAT_IDLE_TOP)
+                SetBaseAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_RUN_BASE).First(), true);
+                if (topAnim.Type == ChaAnimType.CAT_IDLE_TOP)
                 {
-                    SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_TOP).First(), true);
+                    SetTopAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_RUN_TOP).First(), true);
                 }
             }
         }
@@ -334,18 +317,47 @@ namespace OpenMB.Game
             else if (evt.key == KeyCode.KC_S && keyDirection.z == 1) keyDirection.z = 0;
             else if (evt.key == KeyCode.KC_D && keyDirection.x == 1) keyDirection.x = 0;
 
-            if (keyDirection.IsZeroLength && baseAnim.Type == CharacterAnimationType.CAT_RUN_BASE)
+            if (keyDirection.IsZeroLength && baseAnim.Type == ChaAnimType.CAT_RUN_BASE)
             {
                 // stop running if already moving and the player doesn't want to move
-                SetBaseAnimation(anims.Where(o=>o.Type== CharacterAnimationType.CAT_IDLE_BASE).First());
-                if (topAnim.Type == CharacterAnimationType.CAT_RUN_TOP)
+                SetBaseAnimation(anims.Where(o=>o.Type== ChaAnimType.CAT_IDLE_BASE).First());
+                if (topAnim.Type == ChaAnimType.CAT_RUN_TOP)
                 {
-                    SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_TOP).First());
+                    SetTopAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_IDLE_TOP).First());
                 }
             }
         }
 
-        public void injectMouseMove(MouseEvent evt)
+		public MaterialPtr RenderPreview()
+		{
+			string textureName = "RttTex_Character_" + Guid.NewGuid().ToString();
+			string materialName = "RttMat_Character_" + Guid.NewGuid().ToString();
+
+			TexturePtr rttTexture =
+			 TextureManager.Singleton.CreateManual(
+			   textureName,
+			   ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME,
+			   TextureType.TEX_TYPE_2D,
+			   GameManager.Instance.renderWindow.Width,
+			   GameManager.Instance.renderWindow.Height,
+			   0,
+			   PixelFormat.PF_R8G8B8,
+			   (int)TextureUsage.TU_RENDERTARGET);
+
+			RenderTexture renderTexture = rttTexture.GetBuffer().GetRenderTarget();
+			renderTexture.AddViewport(camera);
+			renderTexture.GetViewport(0).SetClearEveryFrame(false);
+			renderTexture.GetViewport(0).BackgroundColour = new ColourValue(0, 0, 0, 0);
+			renderTexture.Update();
+
+			MaterialPtr materialPtr = MaterialManager.Singleton.Create(materialName, ResourceGroupManager.DEFAULT_RESOURCE_GROUP_NAME);
+			materialPtr.GetTechnique(0).GetPass(0).SetSceneBlending(SceneBlendType.SBT_TRANSPARENT_ALPHA);
+			materialPtr.GetTechnique(0).GetPass(0).CreateTextureUnitState().SetTextureName(textureName);
+
+			return materialPtr;
+		}
+
+		public void injectMouseMove(MouseEvent evt)
         {
             if (controlled)
             {
@@ -360,27 +372,27 @@ namespace OpenMB.Game
 
         public void YawBody(Degree degree)
         {
-            bodyNode.Yaw(degree);
+            entityNode.Yaw(degree);
         }
 
         public Quaternion GetBodyOrientation()
         {
-            return bodyNode.Orientation;
+            return entityNode.Orientation;
         }
 
         public void RotateBody(Quaternion quat)
         {
-            bodyNode.Rotate(quat);
+            entityNode.Rotate(quat);
         }
 
         public void TranslateBody(Mogre.Vector3 vector3)
         {
-            bodyNode.Translate(vector3);
+            entityNode.Translate(vector3);
         }
 
         public void SetBodyPos(float x, float y, float z)
         {
-            bodyNode.SetPosition(x, y, z);
+            entityNode.SetPosition(x, y, z);
         }
 
         public void injectMouseDown(MouseEvent evt, MouseButtonID id)
@@ -398,7 +410,7 @@ namespace OpenMB.Game
         {
             goalDirection = Mogre.Vector3.ZERO;   // we will calculate this
 
-            if (keyDirection != Mogre.Vector3.ZERO && baseAnim.Type != CharacterAnimationType.CAT_CUSTOME_BLOCK)
+            if (keyDirection != Mogre.Vector3.ZERO && baseAnim.Type != ChaAnimType.CAT_CUSTOME_BLOCK)
             {
                 // calculate actually goal direction in world based on player's key directions
                 goalDirection += keyDirection.z * cameraNode.Orientation.ZAxis;
@@ -406,54 +418,54 @@ namespace OpenMB.Game
                 goalDirection.y = 0;
                 goalDirection.Normalise();
 
-                Quaternion toGoal = bodyNode.Orientation.ZAxis.GetRotationTo(goalDirection);
+                Quaternion toGoal = entityNode.Orientation.ZAxis.GetRotationTo(goalDirection);
 
                 // calculate how much the character has to turn to face goal direction
                 float yawToGoal = toGoal.Yaw.ValueDegrees;
                 // this is how much the character CAN turn this frame
                 float yawAtSpeed = yawToGoal / Mogre.Math.Abs(yawToGoal) * deltaTime * TURN_SPEED;
                 // reduce "turnability" if we're in midair
-                if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_LOOP) yawAtSpeed *= 0.2f;
+                if (baseAnim.Type == ChaAnimType.CAT_JUMP_LOOP) yawAtSpeed *= 0.2f;
 
                 // turn as much as we can, but not more than we need to
                 if (yawToGoal < 0) yawToGoal = System.Math.Min(0, System.Math.Max(yawToGoal, yawAtSpeed)); //yawToGoal = Math::Clamp<Real>(yawToGoal, yawAtSpeed, 0);
                 else if (yawToGoal > 0) yawToGoal = System.Math.Max(0, System.Math.Min(yawToGoal, yawAtSpeed)); //yawToGoal = Math::Clamp<Real>(yawToGoal, 0, yawAtSpeed);
 
-                bodyNode.Yaw(new Degree(yawToGoal));
+                entityNode.Yaw(new Degree(yawToGoal));
 
                 // move in current body direction (not the goal direction)
                 var dist = deltaTime * RUN_SPEED/* * baseAnim.AnimationState.Weight*/;
                 Mogre.Vector3 displacement = new Mogre.Vector3(0, 0, dist);
-                bodyNode.Translate(displacement.x, displacement.y, displacement.z,
+                entityNode.Translate(displacement.x, displacement.y, displacement.z,
                     Node.TransformSpace.TS_LOCAL);
 
                 /*Get world movement*/
-                displacement = bodyNode.Orientation * displacement;
+                displacement = entityNode.Orientation * displacement;
 
                 ControllerFlags flag;
                 physicsController.Move(displacement, 0, 0.01f, out flag);
-                bodyNode.Position = new Mogre.Vector3(
+                entityNode.Position = new Mogre.Vector3(
                     physicsController.Actor.GlobalPosition.x,
-                    bodyNode.Position.y, 
+                    entityNode.Position.y, 
                     physicsController.Actor.GlobalPosition.z);
             }
 
-            if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_LOOP)
+            if (baseAnim.Type == ChaAnimType.CAT_JUMP_LOOP)
             {
                 // if we're jumping, add a vertical offset too, and apply gravity
-                bodyNode.Translate(0, verticalVelocity * deltaTime, 0, Node.TransformSpace.TS_LOCAL);
+                entityNode.Translate(0, verticalVelocity * deltaTime, 0, Node.TransformSpace.TS_LOCAL);
                 verticalVelocity -= GRAVITY * deltaTime;
 
-                Mogre.Vector3 pos = bodyNode.Position;
+                Mogre.Vector3 pos = entityNode.Position;
                 if (pos.y <= CHAR_HEIGHT * lastPosition.y)
                 {
                     // if we've hit the ground, change to landing state
                     pos.y = CHAR_HEIGHT * lastPosition.y;
-                    bodyNode.Position = pos;
+                    entityNode.Position = pos;
                     ControllerFlags flag;
                     physicsController.Move(pos, 1 << 3, 0.01f, out flag);
-                    bodyNode.Position = physicsController.Actor.GlobalPosition;
-                    SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_JUMP_END).First(), true);
+                    entityNode.Position = physicsController.Actor.GlobalPosition;
+                    SetBaseAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_JUMP_END).First(), true);
                     timer = 0;
                 }
             }
@@ -470,42 +482,42 @@ namespace OpenMB.Game
             //float topAnimSpeed = 1;
 
             timer += deltaTime;
-            if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_START)
+            if (baseAnim.Type == ChaAnimType.CAT_JUMP_START)
             {
                 if (timer >= baseAnim.AnimationState.Length)
                 {
                     // takeoff animation finished, so time to leave the ground!
-                    SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_JUMP_LOOP).First(), true);
+                    SetBaseAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_JUMP_LOOP).First(), true);
                     // apply a jump acceleration to the character
                     verticalVelocity = JUMP_ACCEL;
                 }
             }
-            else if (baseAnim.Type == CharacterAnimationType.CAT_JUMP_END)
+            else if (baseAnim.Type == ChaAnimType.CAT_JUMP_END)
             {
                 if (timer >= baseAnim.AnimationState.Length)
                 {
                     // safely landed, so go back to running or idling
                     if (keyDirection == Mogre.Vector3.ZERO)
                     {
-                        SetBaseAnimation(anims.Where(o=>o.Type== CharacterAnimationType.CAT_IDLE_BASE).First());
-                        SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_IDLE_TOP).First());
+                        SetBaseAnimation(anims.Where(o=>o.Type== ChaAnimType.CAT_IDLE_BASE).First());
+                        SetTopAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_IDLE_TOP).First());
                     }
                     else
                     {
-                        SetBaseAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_BASE).First(), true);
-                        SetTopAnimation(anims.Where(o => o.Type == CharacterAnimationType.CAT_RUN_TOP).First(), true);
+                        SetBaseAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_RUN_BASE).First(), true);
+                        SetTopAnimation(anims.Where(o => o.Type == ChaAnimType.CAT_RUN_TOP).First(), true);
                     }
                 }
             }
 
             // increment the current base and top animation times
-            if (baseAnim.Type != CharacterAnimationType.CAT_NONE)
+            if (baseAnim.Type != ChaAnimType.CAT_NONE)
             {
-                baseAnim.AnimationState.AddTime(deltaTime * baseAnimSpeed);
+                baseAnim.Update(deltaTime * baseAnimSpeed);
             }
-            if (topAnim.Type != CharacterAnimationType.CAT_NONE)
+            if (topAnim.Type != ChaAnimType.CAT_NONE)
             {
-                topAnim.AnimationState.AddTime(deltaTime * baseAnimSpeed);
+                topAnim.Update(deltaTime * baseAnimSpeed);
             }
 
             // apply smooth transitioning between our animations
@@ -544,7 +556,7 @@ namespace OpenMB.Game
         public void updateCamera(float deltaTime)
         {
             // place the camera pivot roughly at the character's shoulder
-            cameraPivot.Position = bodyNode.Position + Mogre.Vector3.UNIT_Y * CAM_HEIGHT;
+            cameraPivot.Position = entityNode.Position + Mogre.Vector3.UNIT_Y * CAM_HEIGHT;
             // move the camera smoothly to the goal
             Mogre.Vector3 goalOffset = cameraGoal._getDerivedPosition() - cameraNode.Position;
             cameraNode.Translate(goalOffset * deltaTime * 9.0f);
@@ -588,7 +600,7 @@ namespace OpenMB.Game
 
             baseAnim = animation;
 
-            if (animation.Type != CharacterAnimationType.CAT_NONE)
+            if (animation.Type != ChaAnimType.CAT_NONE)
             {
                 // if we have a new animation, enable it and fade it in
                 anims[index].AnimationState.Enabled = true;
@@ -612,7 +624,7 @@ namespace OpenMB.Game
 
             topAnim = animation;
 
-            if (animation.Type != CharacterAnimationType.CAT_NONE)
+            if (animation.Type != ChaAnimType.CAT_NONE)
             {
                 // if we have a new animation, enable it and fade it in
                 anims[index].AnimationState.Enabled = true;
@@ -637,7 +649,7 @@ namespace OpenMB.Game
             return anims.Where(o => o.Name == animName).First();
         }
 
-        public string GetAnimationNameByType(CharacterAnimationType characterAnimationType)
+        public string GetAnimationNameByType(ChaAnimType characterAnimationType)
         {
             var findAnims = anims.Where(o=>o.Type == characterAnimationType);
             if(findAnims.Count() > 0)
@@ -652,8 +664,8 @@ namespace OpenMB.Game
 
         public void Dispose()
         {
-            bodyNode.DetachAllObjects();
-            sceneMgr.RootSceneNode.RemoveChild(bodyNode);
+            entityNode.DetachAllObjects();
+            sceneManager.RootSceneNode.RemoveChild(entityNode);
             if(controlled)
             {
                 removeCamera();

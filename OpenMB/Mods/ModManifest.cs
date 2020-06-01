@@ -1,6 +1,8 @@
-﻿using OpenMB.Mods.XML;
+﻿using OpenMB.Localization;
+using OpenMB.Mods.XML;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -13,6 +15,7 @@ namespace OpenMB.Mods
         public readonly ModMediaXml Media;
         public readonly List<ModSettingDfnXml> Settings;
         public readonly string InstalledPath;
+        public readonly string ID;
 
         public ModManifest(string path)
         {
@@ -26,11 +29,13 @@ namespace OpenMB.Mods
                                            xmldata.ModInfo.Name,
                                            xmldata.ModInfo.Description,
                                            xmldata.ModInfo.Version,
+                                           xmldata.ModInfo.Icon,
                                            xmldata.ModInfo.Thumb,
-                                           xmldata.ModInfo.Movie,
+                                           xmldata.ModInfo.StartupBackground,
                                            xmldata.ModInfo.Assemblies,
                                            xmldata.ModInfo.DisplayInChooser);
-                Data = new ModDataInfo(xmldata.Data.characterXML,
+                Data = new ModDataInfo( xmldata.Data.animationXml,
+										xmldata.Data.characterXML,
                                         xmldata.Data.soundXML,
                                         xmldata.Data.musicXML,
                                         xmldata.Data.itemXML,
@@ -44,12 +49,19 @@ namespace OpenMB.Mods
                                         xmldata.Data.modelsXml,
                                         xmldata.Data.scenePropsXML,
 										xmldata.Data.menusXml,
+										xmldata.Data.stringsXml,
+										xmldata.Data.uiLayoutsXml,
+										xmldata.Data.cursorsXml,
+										xmldata.Data.mapTemplatesXml,
+                                        xmldata.Data.vehicleXml,
                                         xmldata.Data.DataDir.MapDir,
                                         xmldata.Data.DataDir.MusicDir,
                                         xmldata.Data.DataDir.ScriptDir);
                 Media = xmldata.Media;
 
                 Settings = xmldata.Settings.Settings;
+
+                ID = (new DirectoryInfo(path)).Name;
             }
         }
     }

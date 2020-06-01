@@ -1,0 +1,95 @@
+material Engine/Base
+{
+    technique
+    {
+        pass
+        {
+            lighting off
+            scene_blend alpha_blend
+            depth_check off
+            
+            texture_unit
+            {
+                tex_address_mode clamp
+                filtering linear linear none
+            }
+        }
+    }
+}
+
+material Engine/Cursor/Edit : Engine/Base
+{
+    technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture cursor_edit.png
+            }
+        }
+    }
+}
+
+material Engine/UI/InputBox/Cursor : Engine/Base
+{
+    technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture input_cursor.png
+            }
+        }
+    }
+}
+
+material AMGE/Engine/BackHorizalLine
+{
+	technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture blackline_h.jpg
+            }
+        }
+    }
+}
+
+material AMGE/Engine/BackVerticalLine
+{
+	technique
+    {
+        pass
+        {
+            texture_unit
+            {
+                texture blackline_v.jpg
+            }
+        }
+    }
+}
+
+material AMGE/Engine/Listview/over
+{
+	technique
+	{
+		pass
+		{
+			texture_unit
+			{
+				texture listview_over.png
+			}
+		}
+	}
+}
+
+material NoMaterial
+{
+	technique
+	{
+	}
+}

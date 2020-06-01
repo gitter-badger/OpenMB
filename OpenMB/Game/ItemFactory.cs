@@ -36,7 +36,7 @@ namespace OpenMB.Game
 
         public Item Produce(
             int id,
-            string desc, string meshName, ItemType type,
+            string desc, string meshName, ItemValidType type,
             ItemUseAttachOption itemUseAttachOption,
             ItemHaveAttachOption itemHaveAttachOption,
             double damage, int range,
@@ -44,64 +44,27 @@ namespace OpenMB.Game
             double amourNum = -1)
         {
             Item item = null;
-            switch (type)
-            {
-                case ItemType.IT_BOW | ItemType.IT_CROSSBOW | ItemType.IT_RIFLE | ItemType.IT_PISTOL|
-                     ItemType.IT_ONE_HAND_WEAPON | ItemType.IT_TWO_HAND_WEAPON| ItemType.IT_POLEARM |
-                     ItemType.IT_RPG_MISSILE | ItemType.IT_SUBMACHINE_GUN| ItemType.IT_THROWN:
-                     item = ItemWeaponFactory.Instance.Produce(
-                         id,
-                         desc, meshName, type,
-                         itemUseAttachOption,
-                         itemHaveAttachOption,
-                         damage, range,
-                         world);
-                     break;
-                case ItemType.IT_HAND_ARMOUR| ItemType.IT_HEAD_ARMOUR| ItemType.IT_BODY_ARMOUR| 
-                     ItemType.IT_FOOT_ARMOUR:
-                     item = ItemArmourFactory.Instance.Produce(
-                         id,
-                         desc, meshName, type, 
-                         itemUseAttachOption,
-                         itemHaveAttachOption,
-                         amourNum,
-                         world);
-                     break;
-                case ItemType.IT_ARROW | ItemType.IT_BOLT | ItemType.IT_BULLET:
-                     item = ItemAmmoFactory.Produce(
-                         desc, meshName, type, 
-                         itemUseAttachOption, 
-                         itemHaveAttachOption, 
-                         damage, ammoCapcity);
-                     break;
-                case ItemType.IT_GOOD:
-                    break;
-                case ItemType.IT_BOOK:
-                    break;
-            }
             
             return item;
         }
 
-        public Item PreProduce(ModItemDfnXML findedItem)
+        public Item PreProduce(ModData modData, GameWorld world, ModItemDfnXML findedItem)
         {
-            var findedItemTypeXml = mod.FindItemType(findedItem.Type);
-            if (findedItemTypeXml != null)
+            var itemType = modData.ItemTypes.Where(o => o.Name == findedItem.Type).FirstOrDefault();
+            if (itemType == null)
             {
-                var findedItemTypes = mod.ItemTypes.Where(o => o.Name == findedItemTypeXml.Name);
-                if (findedItemTypes.Count() > 0)
-                {
-                    Item itm = new Item(Guid.NewGuid().ToString(), findedItem.Name, findedItem.MaterialName, findedItemTypes.ElementAt(0), ItemHaveAttachOption.IHAO_NO_VALUE, ItemUseAttachOption.IAO_NO_VALUE);
-                    return itm;
-                }
+                throw new Exception("Couldn't find properly item type!");
             }
-            return null;
+
+            itemType.ModData = modData;
+
+            Item item = new Item(world, itemType, findedItem);
+            return item;
         }
 
         public Item Produce(Mods.XML.ModItemDfnXML itemXml, GameWorld world)
         {
-            return world.CurrentMap.CreateItem(itemXml.Desc, itemXml.MeshName, (ItemType)Enum.Parse(typeof(ItemType), itemXml.Type), itemXml.AttachOptionWhenUse,
-                itemXml.AttachOptionWhenHave, double.Parse(itemXml.Damage), int.Parse(itemXml.Range), world, itemXml.AmmoCapcity, itemXml.AmourNum);
+            return null;
         }
     }
 }

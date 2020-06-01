@@ -5,15 +5,19 @@ using System.Linq;
 using System.Text;
 using Mogre;
 using OpenMB.Mods;
+using OpenMB.Widgets;
 
 namespace OpenMB.Screen
 {
-    public class ScreenManager
-    {
+    public class ScreenManager : IInitializeMod
+	{
         private Stack<IScreen> runningScreenStack;
         private Dictionary<string, IScreen> innerScreens;
         private static ScreenManager instance;
         private Camera camera;
+		private ModData modData;
+
+		public event Action<string, string> OnExternalEvent;
 
         public Camera Camera
         {
@@ -33,7 +37,7 @@ namespace OpenMB.Screen
             }
         }
 
-		public ModData ModData { get; set; }
+		public ModData ModData { get { return modData; } }
 
 		public ScreenManager()
         {
@@ -42,14 +46,21 @@ namespace OpenMB.Screen
             IScreen screenConsole = new GameConsoleScreen();
             IScreen screenInventory = new InventoryScreen();
             IScreen screenEditor = new GameEditorScreen();
+			IScreen screenMainMenu = new GameMainMenuScreen();
 			IScreen screenMain = new GameMainScreen();
 			IScreen screenMenu = new GameMenuScreen();
+			IScreen screenCha = new CharacterScreen();
+			IScreen screenNotes = new GameNotesScreen();
+			innerScreens.Add(screenMainMenu.Name, screenMainMenu);
 			innerScreens.Add(screenCredit.Name, screenCredit);
             innerScreens.Add(screenConsole.Name, screenConsole);
             innerScreens.Add(screenInventory.Name, screenInventory);
             innerScreens.Add(screenEditor.Name, screenEditor);
 			innerScreens.Add(screenMain.Name, screenMain);
 			innerScreens.Add(screenMenu.Name, screenMenu);
+			innerScreens.Add(screenCha.Name, screenCha);
+			innerScreens.Add(screenNotes.Name, screenNotes);
+			innerScreens.Add("ScriptedScreen", null);
 			//TODO: Load all screen script files
 			instance = this;
             runningScreenStack = new Stack<IScreen>();
@@ -98,10 +109,23 @@ namespace OpenMB.Screen
                 if (runningScreenStack.Peek().Name == screenName)
                 {
                     runningScreenStack.Pop().Exit();
-					if (runningScreenStack.Count > 0)
-					{
-						runningScreenStack.Peek().Run();
-					}
+                    if (runningScreenStack.Count > 0)
+                    {
+                        runningScreenStack.Peek().Run();
+                    }
+                    else
+                    {
+                        IScreen runScreen = innerScreens[screenName];
+                        if (runScreen == null && screenName == "ScriptedScreen")
+                        {
+                            runScreen = new ScriptedScreen();
+                        }
+                        runScreen.OnScreenExit += CurrentScreen_OnScreenExit;
+                        runScreen.OnScreenEventChanged += CurrentScreen_OnScreenEventChanged;
+                        runScreen.Init(param);
+                        runScreen.Run();
+                        runningScreenStack.Push(runScreen);
+                    }
 				}
                 else
                 {
@@ -116,8 +140,13 @@ namespace OpenMB.Screen
 							runningScreenStack.Pop().Exit();
 						}
 						IScreen runScreen = innerScreens[screenName];
+						if (runScreen == null && screenName == "ScriptedScreen")
+						{
+							runScreen = new ScriptedScreen();
+						}
                         runScreen.OnScreenExit += CurrentScreen_OnScreenExit;
-                        runScreen.Init(param);
+						runScreen.OnScreenEventChanged += CurrentScreen_OnScreenEventChanged;
+						runScreen.Init(param);
                         runScreen.Run();
                         runningScreenStack.Push(runScreen);
                     }
@@ -128,17 +157,30 @@ namespace OpenMB.Screen
                 if (innerScreens.ContainsKey(screenName))
                 {
                     IScreen runScreen = innerScreens[screenName];
-                    runScreen.OnScreenExit += CurrentScreen_OnScreenExit;
-                    runScreen.Init(param);
+					if (runScreen == null && screenName == "ScriptedScreen")
+					{
+						runScreen = new ScriptedScreen();
+					}
+					runScreen.OnScreenExit += CurrentScreen_OnScreenExit;
+					runScreen.OnScreenEventChanged += CurrentScreen_OnScreenEventChanged;
+					runScreen.Init(param);
                     runScreen.Run();
                     runningScreenStack.Push(runScreen);
                 }
             }
 		}
 
-		public void ExitCurrentScreenReturn()
+		private void CurrentScreen_OnScreenEventChanged(string widgetName, string value)
 		{
-			runningScreenStack.Pop().Exit();
+			OnExternalEvent?.Invoke(widgetName, value);
+		}
+
+		public void ChangeScreenReturn()
+		{
+            IScreen screen = runningScreenStack.Pop();
+            screen.OnScreenEventChanged -= OnExternalEvent;
+            screen.OnScreenExit -= OnCurrentScreenExit; 
+            screen.Exit();
 			if (runningScreenStack.Count > 0)
 			{
 				runningScreenStack.Peek().Run();
@@ -149,7 +191,10 @@ namespace OpenMB.Screen
         {
             if (runningScreenStack.Count > 0)
             {
-                runningScreenStack.Pop().Exit();
+                IScreen screen = runningScreenStack.Pop();
+                screen.OnScreenEventChanged -= OnExternalEvent;
+                screen.OnScreenExit -= OnCurrentScreenExit;
+                screen.Exit();
             }
             if (runningScreenStack.Count > 0)
             {
@@ -170,7 +215,10 @@ namespace OpenMB.Screen
         {
             while (runningScreenStack.Count > 0)
             {
-                runningScreenStack.Pop().Exit();
+                IScreen screen = runningScreenStack.Pop();
+                screen.OnScreenEventChanged -= OnExternalEvent;
+                screen.OnScreenExit -= OnCurrentScreenExit;
+                screen.Exit();
             }
         }
 
@@ -185,13 +233,17 @@ namespace OpenMB.Screen
         public void Update(float timeSinceLastFrame)
         {
             UpdateCurrentScreen(timeSinceLastFrame);
+			UIManager.Instance.Update();
         }
 
         public void ExitCurrentScreen()
         {
             if (runningScreenStack.Count > 0)
             {
-                runningScreenStack.Pop().Exit();
+                IScreen screen = runningScreenStack.Pop();
+                screen.OnScreenEventChanged -= OnExternalEvent;
+                screen.OnScreenExit -= OnCurrentScreenExit;
+                screen.Exit();
             }
         }
 
@@ -216,5 +268,10 @@ namespace OpenMB.Screen
         {
             return runningScreenStack.Count > 0 ? runningScreenStack.Peek().CheckEnterScreen(mousePos) : false;
         }
-    }
+
+		public void InitMod(ModData modData)
+		{
+			this.modData = modData;
+		}
+	}
 }

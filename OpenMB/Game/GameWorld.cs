@@ -15,6 +15,9 @@ using OpenMB.Mods;
 using OpenMB.Utilities;
 using OpenMB.Trigger;
 using OpenMB.Map;
+using OpenMB.Widgets;
+using OpenMB.States;
+using OpenMB.Render;
 
 namespace OpenMB.Game
 {
@@ -38,7 +41,7 @@ namespace OpenMB.Game
         private ScriptLinkTable globalValueTable;
 		private Dictionary<string, object> globalVariableTable;
 
-		private ProgressBar pbProgressBar;
+		private ProgressBarWidget pbProgressBar;
         
         private Physics physics;
         private Scene physicsScene;
@@ -128,15 +131,15 @@ namespace OpenMB.Game
             globalValueTable = ScriptValueRegister.Instance.GlobalValueTable;
 
             /*Physx Debugger*/
-            if (physics.RemoteDebugger.IsConnected)
-            {
-                physics.RemoteDebugger.Connect("127.0.0.1", 5425);
-            }
-            else
-            {
-                physics.RemoteDebugger.Disconnect();
-                physics.RemoteDebugger.Connect("127.0.0.1", 5425);
-            }
+            //if (physics.RemoteDebugger.IsConnected)
+            //{
+            //    physics.RemoteDebugger.Connect("127.0.0.1", 5425);
+            //}
+            //else
+            //{
+            //    physics.RemoteDebugger.Disconnect();
+            //    physics.RemoteDebugger.Connect("127.0.0.1", 5425);
+            //}
         }
         #endregion
 
@@ -148,17 +151,11 @@ namespace OpenMB.Game
         {
             GameMapManager.Instance.Initization(this);
 
-            GameManager.Instance.mouse.MouseMoved += Mouse_MouseMoved;
-            GameManager.Instance.mouse.MousePressed += Mouse_MousePressed;
-            GameManager.Instance.mouse.MouseReleased += Mouse_MouseReleased;
-            GameManager.Instance.keyboard.KeyPressed += Keyboard_KeyPressed;
-            GameManager.Instance.keyboard.KeyReleased += Keyboard_KeyReleased;
-
-            GameManager.Instance.root.FrameRenderingQueued += FrameRenderingQueued;
-
             /* Will implement them in the script or the map xml file */
             scm = GameManager.Instance.root.CreateSceneManager(SceneType.ST_EXTERIOR_CLOSE, "GameSceneManager");
             scm.AmbientLight = new ColourValue(0.7f, 0.7f, 0.7f);
+
+			OpenGLRenderManager.Initization(scm);
 
             cam = scm.CreateCamera("gameCam");
             cam.AspectRatio = GameManager.Instance.viewport.ActualWidth / GameManager.Instance.viewport.ActualHeight;
@@ -166,11 +163,11 @@ namespace OpenMB.Game
 
             GameManager.Instance.viewport.Camera = cam;
 
-            GameManager.Instance.trayMgr.destroyAllWidgets();
+            UIManager.Instance.DestroyAllWidgets();
             cam.FarClipDistance = 50000;
 
-			var time = TimerManager.Instance.CurrentTime;
-			scm.SetSkyBox(true, GetSkyboxMaterialByTime(time));
+			//var time = TimerManager.Instance.CurrentTime;
+			//scm.SetSkyBox(true, GetSkyboxMaterialByTime(time));
 
 			Light light = scm.CreateLight();
             light.Type = Light.LightTypes.LT_POINT;
@@ -181,11 +178,19 @@ namespace OpenMB.Game
 
 			TimerManager.Instance.TimeChanged += TimeChanged;
 
+			GameManager.Instance.mouse.MouseMoved += Mouse_MouseMoved;
+			GameManager.Instance.mouse.MousePressed += Mouse_MousePressed;
+			GameManager.Instance.mouse.MouseReleased += Mouse_MouseReleased;
+			GameManager.Instance.keyboard.KeyPressed += Keyboard_KeyPressed;
+			GameManager.Instance.keyboard.KeyReleased += Keyboard_KeyReleased;
+
+			GameManager.Instance.root.FrameRenderingQueued += FrameRenderingQueued;
+
 			globalVariableTable = new Dictionary<string, object>();
 
 		}
 
-		private string GetSkyboxMaterialByTime(Time time)
+		public string GetSkyboxMaterialByTime(Time time)
 		{
 			string skyboxMaterialName = null;
 			switch (time)
@@ -227,11 +232,11 @@ namespace OpenMB.Game
         /// Change inner scene
         /// </summary>
         /// <param name="mapID"></param>
-        public void ChangeScene(string mapID)
+        public void ChangeScene(string mapID, string mapTemplateID, List<string> sideIDs)
         {
 			TimerManager.Instance.Pause();
-
-            GameManager.Instance.trayMgr.hideCursor();
+            UIManager.Instance.HideCursor();
+			ScreenManager.Instance.ExitCurrentScreen();
 
             var findMaps = modData.MapInfos.Where(o => o.ID == mapID);
             if (findMaps.Count() > 0)
@@ -241,7 +246,41 @@ namespace OpenMB.Game
                 if (findLoaders.Count() > 0)
                 {
                     var loader = findLoaders.ElementAt(0);
-                    GameMapManager.Instance.Load(findMap.File, loader);
+
+					string logicScriptFile = null;
+					List<GameMapEntryPoint> mapEntryPoints = null;
+					if (!string.IsNullOrEmpty(mapTemplateID))
+					{
+						var mapTemplateData = modData.MapTemplateInfos.Where(o => o.ID == mapTemplateID).FirstOrDefault();
+						logicScriptFile = mapTemplateData.Logic;
+						mapEntryPoints = new List<GameMapEntryPoint>();
+						foreach(var entryPointData in mapTemplateData.EntryPoints)
+						{
+							mapEntryPoints.Add(new GameMapEntryPoint()
+							{
+								Number = int.Parse(entryPointData.ID),
+								Team = int.Parse(entryPointData.Team)
+							});
+						}
+					}
+
+					List<GameTeam> teams = new List<GameTeam>();
+					foreach (var sideID in sideIDs)
+					{
+						var sideInfo = modData.SideInfos.Where(o => o.ID == sideID).FirstOrDefault();
+						if (sideInfo != null)
+						{
+							teams.Add(new GameTeam(teams.Count, sideID));
+						}
+					}
+
+                    GameMapManager.Instance.Load(
+						findMap.File, 
+						mapEntryPoints,
+						teams,
+						logicScriptFile,
+						loader
+					);
                 }
             }
         }
@@ -252,7 +291,7 @@ namespace OpenMB.Game
         /// <param name="worldMapID"></param>
         public void ChangeWorldMap(string worldMapID)
         {
-            GameManager.Instance.trayMgr.showCursor();
+            UIManager.Instance.ShowCursor();
 
             var findWorldMaps = modData.WorldMapInfos.Where(o => o.ID == worldMapID);
             if (findWorldMaps.Count() > 0)
@@ -267,7 +306,7 @@ namespace OpenMB.Game
                     if (findLoaders.Count() > 0)
                     {
                         var loader = findLoaders.ElementAt(0);
-                        GameMapManager.Instance.LoadWorldMap(worldMapID, findMap.File, loader);
+                        GameMapManager.Instance.LoadWorldMap(findMap.File, loader);
                     }
                 }
                 else
@@ -288,11 +327,6 @@ namespace OpenMB.Game
         {
             GameMapManager.Instance.Dispose();
 
-            cam.Dispose();
-            scm.Dispose();
-            physicsScene.Dispose();
-            physics.Dispose();
-
             GameManager.Instance.mouse.MouseMoved -= Mouse_MouseMoved;
             GameManager.Instance.mouse.MousePressed -= Mouse_MousePressed;
             GameManager.Instance.mouse.MouseReleased -= Mouse_MouseReleased;
@@ -301,7 +335,12 @@ namespace OpenMB.Game
             GameManager.Instance.root.FrameRenderingQueued -= FrameRenderingQueued;
 
 			TimerManager.Instance.Stop();
-        }
+
+			OpenGLRenderManager.Shutdown();
+
+			scm.DestroyCamera(cam);
+			GameManager.Instance.root.DestroySceneManager(scm);
+		}
 
         #endregion
 
@@ -317,24 +356,27 @@ namespace OpenMB.Game
         #region Handle Input
         bool Keyboard_KeyReleased(MOIS.KeyEvent arg)
         {
+			ScreenManager.Instance.InjectKeyReleased(arg);
             return true;
         }
         bool Keyboard_KeyPressed(MOIS.KeyEvent arg)
         {
+			ScreenManager.Instance.InjectKeyPressed(arg);
             return true;
         }
         bool Mouse_MouseReleased(MOIS.MouseEvent arg, MOIS.MouseButtonID id)
-        {
-            return true;
+		{
+			ScreenManager.Instance.InjectMouseReleased(arg, id);
+			return true;
         }
         bool Mouse_MousePressed(MOIS.MouseEvent arg, MOIS.MouseButtonID id)
 		{
-			if (GameManager.Instance.trayMgr.injectMouseDown(arg, id)) return true;
+			ScreenManager.Instance.InjectMousePressed(arg, id);
 			return true;
         }
         bool Mouse_MouseMoved(MOIS.MouseEvent arg)
 		{
-			if (GameManager.Instance.trayMgr.injectMouseMove(arg)) return true;
+			ScreenManager.Instance.InjectMouseMove(arg);
 			return true;
         }
 
@@ -367,8 +409,8 @@ namespace OpenMB.Game
 
 		private void CreateLoadingScreen(string text)
 		{
-			GameManager.Instance.trayMgr.destroyAllWidgets();
-			pbProgressBar = GameManager.Instance.trayMgr.createProgressBar(TrayLocation.TL_CENTER, "pbProcessBar", "Loading", 500, 300);
+			UIManager.Instance.DestroyAllWidgets();
+			pbProgressBar = UIManager.Instance.CreateProgressBar(UIWidgetLocation.TL_CENTER, "pbProcessBar", "Loading", 500, 300);
 			pbProgressBar.setComment(text);
 		}
 
@@ -482,14 +524,14 @@ namespace OpenMB.Game
 			return GameMapManager.Instance.CurrentMap.GetScenePropInstanceID(scenePropID, int.Parse(scenePropInstanceNum));
 		}
 
-		public void RemoveSceneProp(string propInstanceID)
+		public void RemoveSceneProp(string scenePropID, int propInstanceID)
 		{
-			GameMapManager.Instance.CurrentMap.RemoveSceneProp(propInstanceID);
+			GameMapManager.Instance.CurrentMap.RemoveSceneProp(scenePropID, propInstanceID);
 		}
 
-		public void MoveSceneProp(string propInstanceID, string axis, string movement)
+		public void MoveSceneProp(string sceneTypeID, int propInstanceID, string axis, string movement)
 		{
-			GameMapManager.Instance.CurrentMap.MoveSceneProp(propInstanceID, int.Parse(axis), int.Parse(movement));
+			GameMapManager.Instance.CurrentMap.MoveSceneProp(sceneTypeID, propInstanceID, int.Parse(axis), int.Parse(movement));
 		}
 
 		public void CreatePlane(string materialName, Mogre.Vector3 vector31, float v1, int v2, int v3, int v4, int v5, ushort v6, int v7, int v8, Mogre.Vector3 vector32, Mogre.Vector3 vector33)
@@ -508,6 +550,14 @@ namespace OpenMB.Game
 					GameMapManager.Instance.CurrentMap.CameraHanlder.ChangeMode(CameraMode.Manual);
 					break;
 			}
+		}
+
+		public void ChangeGameState(string newState)
+		{
+			AppStateManager.Instance.changeAppState(
+				AppStateManager.Instance.findByName(newState),
+				modData
+			);
 		}
 		#endregion
 	}

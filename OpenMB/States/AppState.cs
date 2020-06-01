@@ -5,6 +5,7 @@ using Mogre;
 using Mogre_Procedural.MogreBites;
 using MOIS;
 using OpenMB.Mods;
+using OpenMB.Widgets;
 
 namespace OpenMB.States
 {
@@ -23,7 +24,7 @@ namespace OpenMB.States
         public virtual void shutdown() { }
         public virtual void popAllAndPushAppState<T>(AppState state) where T:AppState { }
 };
-    public class AppState : SdkTrayListener
+    public class AppState : UIListener
     {
         protected AppStateListener listener;
         protected Camera camera;

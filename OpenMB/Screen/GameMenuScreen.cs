@@ -16,10 +16,10 @@ namespace OpenMB.Screen
 		private GameWorld world;
 		private string menuID;
 		private ModMenuDfnXml menuData;
-		private Panel menuMainPanel;
-		private Panel menuItemsPanel;
+		private PanelWidget menuMainPanel;
+		private PanelWidget menuItemsPanel;
 		private StaticText menuTitle;
-		private List<Button> menuButtons;
+		private List<ButtonWidget> menuButtons;
 		private ScriptLoader loader = new ScriptLoader();
 		private ScriptFile script = new ScriptFile();
 
@@ -33,7 +33,7 @@ namespace OpenMB.Screen
 
 		public GameMenuScreen()
 		{
-			menuButtons = new List<Button>();
+			menuButtons = new List<ButtonWidget>();
 		}
 
 		public override void Init(params object[] param)
@@ -45,7 +45,7 @@ namespace OpenMB.Screen
 		public override void Run()
 		{
 			var modData = ScreenManager.Instance.ModData;
-			var findedMenus = modData.MenuInfos.Where(o => o.id == menuID);
+			var findedMenus = modData.MenuInfos.Where(o => o.ID == menuID);
 			if (findedMenus.Count() > 0)
 			{
 				menuData = findedMenus.First();
@@ -62,16 +62,16 @@ namespace OpenMB.Screen
 				loader.ExecuteFunction(script, "menuInit", world);
 				menuData = world.GlobalVariableTable["menuData"] as ModMenuDfnXml;
 
-				menuMainPanel = GameManager.Instance.trayMgr.createPanel("menuMainPanel");
+				menuMainPanel = UIManager.Instance.CreatePanel("menuMainPanel");
 				menuMainPanel.AddRow(Widgets.ValueType.Percent);
 				menuMainPanel.AddCol(Widgets.ValueType.Percent);
 
-				menuTitle = GameManager.Instance.trayMgr.createStaticText("menuStaticText", menuData.Title);
-				menuTitle.WidgetMetricMode = Mogre.GuiMetricsMode.GMM_RELATIVE;
+				menuTitle = UIManager.Instance.CreateStaticText("menuStaticText", menuData.Title);
+				menuTitle.MetricMode = Mogre.GuiMetricsMode.GMM_RELATIVE;
 				menuTitle.Top = 0.05f;
 				menuMainPanel.AddWidget(1, 1, menuTitle, AlignMode.Center);
 
-				menuItemsPanel = GameManager.Instance.trayMgr.createPanel("menuItemsPanel", 0.5f, 0.5f, 0, 0);
+				menuItemsPanel = UIManager.Instance.CreatePanel("menuItemsPanel", 0.5f, 0.5f, 0, 0);
 				menuMainPanel.AddWidget(2, 1, menuItemsPanel, AlignMode.Left, DockMode.Fill);
 
 				foreach (var menu in menuData.Children)
@@ -82,8 +82,8 @@ namespace OpenMB.Screen
 				int row = 2;
 				foreach (var menu in menuData.Children)
 				{
-					var button = GameManager.Instance.trayMgr.createButton(menu.id, menu.Text, 200);
-					button.WidgetMetricMode = Mogre.GuiMetricsMode.GMM_RELATIVE;
+					var button = UIManager.Instance.CreateButton(menu.id, menu.Text, 200);
+					button.MetricMode = Mogre.GuiMetricsMode.GMM_RELATIVE;
 					menuItemsPanel.AddWidget(row, 1, button, AlignMode.Center);
 					menuButtons.Add(button);
 					button.OnClick += Button_OnClick;
@@ -94,14 +94,20 @@ namespace OpenMB.Screen
 
 		private void Button_OnClick(object sender)
 		{
-			loader.ExecuteFunction(script, "menuButtonClicked", world, (sender as Button).getName());
+			loader.ExecuteFunction(
+				script, 
+				"menuButtonClicked", 
+				world,
+				this,
+				(sender as ButtonWidget).Name
+			);
 		}
 
 		public override void Exit()
 		{
 			TimerManager.Instance.Resume();
 
-			GameManager.Instance.trayMgr.destroyAllWidgets();
+			UIManager.Instance.DestroyAllWidgets();
 		}
 	}
 }

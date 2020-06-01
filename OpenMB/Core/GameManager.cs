@@ -11,8 +11,11 @@ using OpenMB.Network;
 using OpenMB.Screen;
 using OpenMB.Sound;
 using OpenMB.States;
+using OpenMB.Utilities;
+using OpenMB.Widgets;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -47,7 +50,6 @@ namespace OpenMB
         public MOIS.InputManager inputMgr;
         public Keyboard keyboard;
         public Mouse mouse;
-        public SdkTrayManager trayMgr;
         public static string LastStateName;
         public event Action<float> Update;
         public LoadingData loadingData;
@@ -100,7 +102,6 @@ namespace OpenMB
             inputMgr = null;
             keyboard = null;
             mouse = null;
-            trayMgr = null;
             appStateMgr = null;
             soundMgr = null;
             videoMode = new NameValuePairList();
@@ -136,10 +137,10 @@ namespace OpenMB
             RenderSystem rs = null;
             IniConfigFileParser parser = new IniConfigFileParser();
 
-            if(gameOptions==null)
-            {
-                gameOptions = GameConfigXml.Load("game.xml");
-            }
+			if (gameOptions == null)
+			{
+				gameOptions = GameConfigXml.Load("game.xml", root);
+			}
 
             defaultRenderSystemName = gameOptions.GraphicConfig.CurrentRenderSystem;
             var renderParams = gameOptions.GraphicConfig[gameOptions.GraphicConfig.CurrentRenderSystem];
@@ -171,8 +172,13 @@ namespace OpenMB
                 }
                 root.RenderSystem = rs;
             }
+
             renderWindow = root.Initialise(true, wndTitle);
- 
+
+            IntPtr hwnd;
+            renderWindow.GetCustomAttribute("WINDOW", out hwnd);
+            Helper.SetRenderWindowIcon(new System.Drawing.Icon(Path.Combine(Environment.CurrentDirectory, "app.ico")), hwnd);
+
             viewport = renderWindow.AddViewport(null);
             ColourValue cv = new ColourValue(0.5f, 0.5f, 0.5f);
             viewport.BackgroundColour = cv;
@@ -219,21 +225,22 @@ namespace OpenMB
             
             ResourceGroupManager.Singleton.InitialiseAllResourceGroups();
 
-            trayMgr = new SdkTrayManager("AMOFTrayMgr", renderWindow, mouse, new SdkTrayListener() );
+			UIManager.Instance.Init("AMOFTrayMgr", renderWindow, mouse, new UIListener());
 
-            timer = new Timer();
+
+			timer = new Timer();
             timer.Reset();
  
             renderWindow.IsActive=true;
 
             this.gameOptions = gameOptions;
 
-            log.LogMessage("Game Started!");
+			log.LogMessage("Game Started!");
 
             return true;
         }
 
-		public void SetFullScreen()
+		public void SwitchFullScreen()
         {
             renderWindow.SetFullscreen(
                 !renderWindow.IsFullScreen,
@@ -318,28 +325,28 @@ namespace OpenMB
             return true;
         }
 
-		private void KeyMouseManager_SomeKeyPressd(KeyCode keyCode)
+		private void KeyMouseManager_SomeKeyPressd(KeyCollection keyCollection)
 		{
-			if (keyCode == KeyMapperManager.Instance.GetKey(GameKeyCode.FullScreen))
+			if (keyCollection == KeyMapperManager.Instance.GetKeyCollection(GameKeyCode.FullScreen))
 			{
-				SetFullScreen();
+				SwitchFullScreen();
 			}
-			else if(keyCode == KeyMapperManager.Instance.GetKey(GameKeyCode.Screenshot))
+			else if(keyCollection == KeyMapperManager.Instance.GetKeyCollection(GameKeyCode.Screenshot))
 			{
 				renderWindow.WriteContentsToTimestampedFile("ScreenShot_", ".jpg");
 				outputMgr.DisplayMessage(string.Format(locateMgr.GetLocalizedString(LocateFileType.GameString, "str_screenshots_saved_to_{0}"), Environment.CurrentDirectory));
 			}
-			else if (keyCode == KeyMapperManager.Instance.GetKey(GameKeyCode.ShowOgreLogo))
+			else if (keyCollection == KeyMapperManager.Instance.GetKeyCollection(GameKeyCode.ShowOgreLogo))
 			{
-				if (trayMgr.isLogoVisible())
+				if (UIManager.Instance.isLogoVisible())
 				{
-					trayMgr.hideFrameStats();
-					trayMgr.hideLogo();
+					UIManager.Instance.HideFrameStats();
+					UIManager.Instance.hideLogo();
 				}
 				else
 				{
-					trayMgr.showFrameStats(TrayLocation.TL_BOTTOMLEFT);
-					trayMgr.showLogo(TrayLocation.TL_BOTTOMRIGHT);
+					UIManager.Instance.showFrameStats(UIWidgetLocation.TL_BOTTOMLEFT);
+					UIManager.Instance.ShowLogo(UIWidgetLocation.TL_BOTTOMRIGHT);
 				}
 			}
 		}
@@ -356,7 +363,7 @@ namespace OpenMB
         public void Dispose()
         {
             root.Dispose();
-            trayMgr.Dispose();
+			UIManager.Instance.Dispose();
             timer.Dispose();
         }
     }

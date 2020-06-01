@@ -7,6 +7,8 @@ using System.Linq;
 using System.Text;
 using Vector3 = Mogre.Vector3;
 using OpenMB.Screen;
+using Mogre_Procedural.MogreBites;
+using OpenMB.Widgets;
 
 namespace OpenMB.Game
 {
@@ -38,7 +40,7 @@ namespace OpenMB.Game
         {
             if (cameraMode == CameraMode.Manual)
             {
-                ScreenManager.Instance.InjectMouseMove(arg);
+                //ScreenManager.Instance.InjectMouseMove(arg);
                 return;
             }
             Degree deCameraYaw = new Degree(arg.state.X.rel * -0.1f);
@@ -86,7 +88,7 @@ namespace OpenMB.Game
         {
             if (cameraMode == CameraMode.Manual)
             {
-                ScreenManager.Instance.InjectKeyPressed(arg);
+                //ScreenManager.Instance.InjectKeyPressed(arg);
             }
             else if (cameraMode == CameraMode.Follow &&
                (arg.key == KeyCode.KC_W ||
@@ -142,7 +144,7 @@ namespace OpenMB.Game
         {
             if (cameraMode == CameraMode.Manual)
             {
-                ScreenManager.Instance.InjectKeyReleased(arg);
+                //ScreenManager.Instance.InjectKeyReleased(arg);
             }
             cameraMovement = new Vector3(0, 0, 0);
         }
@@ -170,7 +172,7 @@ namespace OpenMB.Game
                 case CameraMode.Manual:
                     break;
             }
-            GameManager.Instance.trayMgr.refreshCursor();
+            UIManager.Instance.RefreshCursor();
         }
         public void MoveCamera()
         {

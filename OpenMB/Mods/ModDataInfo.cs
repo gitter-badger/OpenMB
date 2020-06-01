@@ -6,8 +6,9 @@ using System.Text;
 namespace OpenMB.Mods
 {
     public class ModDataInfo
-    {
-        public readonly string Characters;
+	{
+		public readonly string Animations;
+		public readonly string Characters;
         public readonly string Sound;
         public readonly string Music;
         public readonly string Items;
@@ -24,26 +25,21 @@ namespace OpenMB.Mods
         public readonly string MusicDir;
         public readonly string ScriptDir;
 		public readonly string Menus;
+		public readonly string Strings;
+		public readonly string UILayouts;
+		public readonly string Cursors;
+		public readonly string MapTemplates;
+        public readonly string Vehicles;
 
-        public ModDataInfo(
-            string characters,
-            string sound,
-            string music,
-            string items,
-            string itemTypes,
-            string sides, 
-            string skin,
-            string maps,
-            string worldmaps,
-            string locations,
-            string skeletons,
-            string models,
-            string sceneProps,
-			string menus,
-            string mapDir,
-            string musicDir,
-            string scriptDir)
+		public ModDataInfo(
+			string animations, string characters, string sound, string music,
+            string items, string itemTypes, string sides, string skin, string maps,
+            string worldmaps, string locations, string skeletons, string models,
+            string sceneProps, string menus, string strings, string uiLayouts,
+			string cursors, string mapTemplates, string vehicles,
+			string mapDir, string musicDir, string scriptDir)
         {
+			Animations = animations;
             Characters = characters;
             Sound = sound;
             Music = music;
@@ -61,6 +57,11 @@ namespace OpenMB.Mods
             MusicDir = musicDir;
             ScriptDir = scriptDir;
 			Menus = menus;
+			UILayouts = uiLayouts;
+			Strings = strings;
+			Cursors = cursors;
+			MapTemplates = mapTemplates;
+            Vehicles = vehicles;
         }
-    }
+	}
 }

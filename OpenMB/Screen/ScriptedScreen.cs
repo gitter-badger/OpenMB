@@ -1,57 +1,111 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using MOIS;
+using OpenMB.Game;
+using OpenMB.Mods;
+using OpenMB.Mods.XML;
 using OpenMB.Script;
-using OpenMB.Script.Command;
+using OpenMB.Widgets;
 
 namespace OpenMB.Screen
 {
-    public class ScriptedScreen : Screen
+	public class ScriptedScreen : Screen
     {
         private object[] args;
-        public override event Action OnScreenExit;
-        public event Action OnScreenRun;
-        public UIScriptFile uiScript;
+		private GameWorld world;
+		private string uiLayoutID;
+		private ModData modData;
+        private ScriptFile scriptFile;
+        private ScriptLoader loader;
         public override string Name
         {
             get
             {
-                return "Script";
+                return "ScriptedScreen";
             }
-        }
-
-        public ScriptedScreen(UIScriptFile uiScript)
-        {
-            this.uiScript = uiScript;
         }
 
         public override void Init(params object[] args)
         {
             this.args = args;
-            uiScript.ExecuteSetup(args);
+			world = args[0] as GameWorld;
+			uiLayoutID = args[1].ToString();
+			modData = world.ModData;
+            loader = new ScriptLoader();
         }
 
         public override void Run()
         {
-            if(OnScreenRun!=null)
+			var uiLayoutData = modData.UILayoutInfos.Where(o => o.ID == uiLayoutID).FirstOrDefault();
+			if (uiLayoutData == null)
+			{
+				throw new Exception("Invalid UILayout ID!");
+			}
+
+			foreach(var widgetData in uiLayoutData.Widgets)
+			{
+				createWidget(widgetData);
+            }
+
+            if (!string.IsNullOrEmpty(uiLayoutData.Script))
             {
-                OnScreenRun();
+                scriptFile = new ScriptFile(uiLayoutData.Script);
+                ScriptLoader loader = new ScriptLoader();
+                loader.ExecuteFunction(scriptFile, "uiInit", world, this);
             }
         }
 
-        public override void Update(float timeSinceLastFrame)
+		private void createWidget(ModUILayoutWidgetDfnXml widgetData)
+		{
+			Widget widget = UIManager.Instance.CreateWidget(modData, widgetData);
+			if (widgetData.Type == "Button")
+			{
+				(widget as ButtonWidget).OnClick += ButtonWidget_OnClick;
+			}
+			else if (widgetData.Type == "SelectMenu")
+			{
+				(widget as SelectMenuWidget).OnSelectedIndexChanged += SelectMenuWidget_OnSelectedIndexChanged;
+			}
+            widgets.Add(widget);
+		}
+
+		private void ButtonWidget_OnClick(object sender)
         {
-            uiScript.ExecuteUpdate(args, timeSinceLastFrame);
+            if (scriptFile != null)
+            {
+				loader.ExecuteFunction(
+					scriptFile,
+					"uiEventChanged",
+					world,
+					this,
+					(sender as Widget).Name,
+					string.Empty
+				);
+            }
+		}
+
+		private void SelectMenuWidget_OnSelectedIndexChanged(object sender, int selectedIndex)
+		{
+			if (scriptFile != null)
+			{
+				loader.ExecuteFunction(
+					scriptFile,
+					"uiEventChanged",
+					world,
+					this,
+					(sender as Widget).Name,
+					selectedIndex
+				);
+			}
+		}
+
+		public override void Update(float timeSinceLastFrame)
+        {
         }
 
         public override void Exit()
         {
-            if (OnScreenExit != null)
-            {
-                OnScreenExit();
-            }
+            UIManager.Instance.DestroyAllWidgets();
         }
     }
 }

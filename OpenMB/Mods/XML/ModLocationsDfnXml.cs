@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Mogre;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,26 +16,41 @@ namespace OpenMB.Mods.XML
     [XmlRoot("Locations")]
     public class ModLocationDfnXml
     {
-        [XmlElement]
+        [XmlAttribute]
         public string ID { get; set; }
         [XmlElement]
         public string Name { get; set; }
         [XmlElement]
         public ModLocationPositionDfnXml Position { get; set; }
         [XmlElement]
-        public string Mesh { get; set; }
+        public ModLocationModelDfnXml Model { get; set; }
         [XmlArray("Flags")]
         [XmlArrayItem("Flag")]
         public List<ModLocationFlagDfnXml> Flags { get; set; }
-    }
+	}
+	[XmlRoot("Model")]
+	public class ModLocationModelDfnXml
+	{
+		[XmlAttribute]
+		public string Type { get; set; }
+		[XmlText]
+		public string Resource { get; set; }
+	}
 
-    public class ModLocationPositionDfnXml
+	public class ModLocationPositionDfnXml
     {
         [XmlAttribute]
         public float X { get; set; }
         [XmlAttribute]
         public float Y { get; set; }
-    }
+		[XmlAttribute]
+		public float Z { get; set; }
+
+		public Vector3 ToPositionVector()
+		{
+			return new Vector3(X, Y, Z);
+		}
+	}
 
     public class ModLocationFlagDfnXml
     {

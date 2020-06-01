@@ -12,7 +12,8 @@ namespace OpenMB.Core
 		private const KeyCode COMBINED_KEY_CODE = KeyCode.KC_LCONTROL;
 		private bool combineKey;
 
-		public event Action<KeyCode> SomeKeyPressd;
+		public event Action<MouseEvent> MouseHasMoved;
+		public event Action<KeyCollection> SomeKeyPressd;
 
 		public InputKeyMouseManager()
 		{
@@ -36,6 +37,7 @@ namespace OpenMB.Core
 
 		private bool MouseMoved(MouseEvent arg)
 		{
+			MouseHasMoved?.Invoke(arg);
 			return true;
 		}
 
@@ -62,14 +64,18 @@ namespace OpenMB.Core
 			}
 			else
 			{
+				KeyCollection keyCollection = new KeyCollection();
 				if (combineKey)
 				{
-					SomeKeyPressd?.Invoke(COMBINED_KEY_CODE | keyCode);
+					keyCollection.keyCodes.Add(COMBINED_KEY_CODE);
+					keyCollection.keyCodes.Add(keyCode);
+					SomeKeyPressd?.Invoke(keyCollection);
 					combineKey = false;
 				}
 				else
 				{
-					SomeKeyPressd?.Invoke(keyCode);
+					keyCollection.keyCodes.Add(keyCode);
+					SomeKeyPressd?.Invoke(keyCollection);
 					combineKey = false;
 				}
 			}

@@ -22,13 +22,18 @@ namespace OpenMB.Game
         Attack,
         Flee
     }
+
+    public enum CharacterFlag
+    {
+        CF_Mounted,
+		CF_NPC,
+    }
+
     /// <summary>
     /// Specific Characer in Game
     /// </summary>
     public class Character : GameObject
     {
-        private string displayName;
-        private string meshName;
         private DecisionSystem brain;
         private WeaponSystem weaponSystem;
         private EquipmentSystem equipmentSystem;
@@ -37,6 +42,7 @@ namespace OpenMB.Game
         private Activity currentActivity;
         private ModCharacterSkinDfnXML skin;
         private bool isBot;
+        private ModCharacterDfnXML chaData;
         private string teamId;
         private CharacterController controller;
 
@@ -48,15 +54,7 @@ namespace OpenMB.Game
 
         public string Name
         {
-            get { return displayName; }
-        }
-
-        public string MeshName
-        {
-            get
-            {
-                return meshName;
-            }
+            get { return chaData.Name; }
         }
 
         public string TeamId
@@ -65,6 +63,10 @@ namespace OpenMB.Game
             {
                 return teamId;
             }
+			set
+			{
+				teamId = value;
+			}
         }
 
         public bool IsDead
@@ -107,44 +109,84 @@ namespace OpenMB.Game
             }
         }
 
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        /// <param name="world">Environment</param>
-        /// <param name="cam">Camera</param>
-        /// <param name="id">Unique Id</param>
-        /// <param name="teamId">Team Id</param>
-        /// <param name="name">Name</param>
-        /// <param name="meshName">Mesh Name</param>
-        /// <param name="initPosition">Init Position</param>
-        /// <param name="isBot">Is Bot or not</param>
-        public Character(
-            GameWorld world,
-            int id,
-            string teamId,
-            string displayName,
-            string meshName,
-            Mogre.Vector3 initPosition,
-            ModCharacterSkinDfnXML skin,
-            bool isBot) : base(id, world)
+        public string TypeID
         {
-            this.world = world;
-            this.displayName = displayName;
-            this.meshName = meshName;
-            this.skin = skin;
-            this.isBot = isBot;
+            get
+            {
+                return chaData.ID;
+            }
+        }
+
+        public bool IsRider
+        {
+            get
+            {
+                return equipmentSystem.RideDrive != null;
+            }
+        }
+
+        public Character(
+			GameWorld world,
+			ModCharacterDfnXML chaData,
+			ModCharacterSkinDfnXML chaSkin,
+			Mogre.Vector3 initPosition,
+			bool isBot) : base(-1, world)
+		{
+			this.world = world;
+			this.isBot = isBot;
+            this.chaData = chaData;
+            skin = chaSkin;
             Id = id;
-            position = initPosition;
-            brain = new DecisionSystem(this);
-            weaponSystem = new WeaponSystem(this, new Fist(world, -1, id));
-            equipmentSystem = new EquipmentSystem(this);
+			brain = new DecisionSystem(this);
+			weaponSystem = new WeaponSystem(this, null);
+			equipmentSystem = new EquipmentSystem(this);
 
-            currentActivity = new Idle();
-            moveInfo = new MoveInfo(CharacterController.RUN_SPEED);
-            health = new HealthInfo(this);
-            messageQueue = new List<CharacterMessage>();
+			currentActivity = new Idle();
+			moveInfo = new MoveInfo(CharacterController.RUN_SPEED);
+			health = new HealthInfo(this);
+			messageQueue = new List<CharacterMessage>();
 
-            create();
+            initEquipments();
+
+			mesh = new CharacterController(world, chaData, chaSkin, initPosition, isBot);
+			controller = (CharacterController)mesh;
+		}
+
+        private void initEquipments()
+        {
+            foreach (var item in chaData.Equipments)
+            {
+                var itemInfo = world.ModData.ItemInfos.Where(o => o.ID == item).FirstOrDefault();
+                if (itemInfo != null)
+                {
+                    var itemType = world.ModData.ItemTypes.Where(o => o.Name == itemInfo.Type).FirstOrDefault();
+                    if (itemInfo != null && itemType != null)
+                    {
+                        var itm = new Item(world, itemType, itemInfo, false);
+                        switch (itemType.Name)
+                        {
+                            case "IT_RIDEDRIVE":
+                                equipmentSystem.EquipRideDrive(itm);
+                                break;
+                            case "IT_HEAD_ARMOUR":
+                                equipmentSystem.EquipHeadArmour(itm);
+                                break;
+                            case "IT_BODY_ARMOUR":
+                                equipmentSystem.EquipBodyArmour(itm);
+                                break;
+                            case "IT_FOOT_ARMOUR":
+                                equipmentSystem.EquipFootArmour(itm);
+                                break;
+                            case "IT_HAND_ARMOUR":
+                                equipmentSystem.EquipHandArmour(itm);
+                                break;
+                            default:
+                                equipmentSystem.AddItemToBackpack(itm);
+                                break;
+                        }
+                    }
+                }
+            }
         }
 
         public void AttchItem(Item target)
@@ -152,32 +194,9 @@ namespace OpenMB.Game
             controller.AttachItem(ItemUseAttachOption.IAO_SPIN, target);
         }
 
-        protected override void create()
-        {
-            controller = new CharacterController(world.Camera, world.CurrentMap.NavmeshQuery, world.CurrentMap.PhysicsScene, meshName, skin, isBot, position);
-        }
-
         public bool GetControlled()
         {
             return controller.GetControlled();
-        }
-
-        public void WearHat(Item item)
-        {
-            if (item != null && item.ItemType == ItemType.IT_HEAD_ARMOUR)
-            {
-                equipmentSystem.EquipClothes(item, 0);
-                controller.AttachEntityToChara("head", item.ItemEnt);
-            }
-        }
-
-        public void WearClothes(Item item)
-        {
-            if (item != null && item.ItemType == ItemType.IT_BODY_ARMOUR)
-            {
-                equipmentSystem.EquipClothes(item, 1);
-                controller.AttachEntityToChara("back", item.ItemEnt);
-            }
         }
 
         /// <summary>
@@ -224,7 +243,6 @@ namespace OpenMB.Game
 
         public override void Update(float timeSinceLastFrame)
         {
-            position = controller.Position;
             brain.Update(timeSinceLastFrame);
             controller.update(timeSinceLastFrame);
             weaponSystem.Update(timeSinceLastFrame);
@@ -396,12 +414,12 @@ namespace OpenMB.Game
 
         public string GetIdleTopAnim()
         {
-            return controller.GetAnimationNameByType(CharacterAnimationType.CAT_IDLE_TOP);
+            return controller.GetAnimationNameByType(ChaAnimType.CAT_IDLE_TOP);
         }
 
         public string GetIdleBaseAnim()
         {
-            return controller.GetAnimationNameByType(CharacterAnimationType.CAT_IDLE_BASE);
+            return controller.GetAnimationNameByType(ChaAnimType.CAT_IDLE_BASE);
         }
 
         public void AttachCamera(Camera camera)
@@ -423,5 +441,16 @@ namespace OpenMB.Game
         {
             controller.Dispose();
         }
-    }
+
+		public override MaterialPtr RenderPreview()
+		{
+			return controller.RenderPreview();
+		}
+
+		public override void Destroy()
+		{
+			controller.EntityNode.RemoveAndDestroyAllChildren();
+			controller.SceneManager.DestroySceneNode(controller.EntityNode);
+		}
+	}
 }

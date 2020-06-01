@@ -1,4 +1,6 @@
-﻿using OpenMB.Game.ItemTypes;
+﻿using Mogre;
+using OpenMB.Game;
+using OpenMB.Game.ItemTypes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,9 +8,9 @@ using System.Text;
 
 namespace OpenMB.Mods.Common.ItemTypes
 {
-    public class ItemTypeRifle : IItemType
+    public class ItemTypeRifle : ItemType
     {
-        public string Name
+        public override string Name
         {
             get
             {
@@ -16,7 +18,20 @@ namespace OpenMB.Mods.Common.ItemTypes
             }
         }
 
-        public void Use(params object[] param)
+        public override string SpawnAttachBoneName
+        {
+            get
+            {
+                return "LeftHand";
+            }
+        }
+
+        public override MaterialPtr RenderPreview(Entity ent)
+		{
+			return null;
+		}
+
+        public override void Use(params object[] param)
         {
 
         }

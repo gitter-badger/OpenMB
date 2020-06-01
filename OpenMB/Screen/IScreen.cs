@@ -1,5 +1,6 @@
 ﻿using Mogre;
 using MOIS;
+using OpenMB.Widgets;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +12,10 @@ namespace OpenMB.Screen
     {
         bool IsVisible { get; }
         event Action OnScreenExit;
+		event Action<string, string> OnScreenEventChanged;
         string Name { get; }
+        List<Widget> UIWidgets { get; }
+
         void Init(params object[] param);
         void Run();
         void Update(float timeSinceLastFrame);

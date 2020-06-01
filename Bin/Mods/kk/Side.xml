@@ -1,0 +1,30 @@
+<Sides>
+  <Side ID="side_no_side">
+    <Name>!{No Side}</Name>
+	<COA></COA>
+  </Side>
+  <Side ID="side_player">
+    <Name>!{Player Side}</Name>
+	<COA></COA>
+  </Side>
+  <Side ID="side_empire">
+    <Name>Skware Empire</Name>
+	<COA>coat_of_arms_the_empire.png</COA>
+  </Side>
+  <Side ID="side_order">
+    <Name>Menson Order</Name>
+	<COA>coat_of_arms_the_order.png</COA>
+  </Side>
+  <Side ID="side_pirate">
+    <Name>Lydols Pirates Alliance</Name>
+	<COA>coat_of_arms_the_empire.png</COA>
+  </Side>
+  <Side ID="side_moldavia">
+    <Name>Kingdom of Moldavian Forest</Name>
+	<COA>coat_of_arms_the_empire.png</COA>
+  </Side>
+  <Side ID="side_outlaws">
+    <Name>The Outlaws</Name>
+	<COA></COA>
+  </Side>
+</Sides>

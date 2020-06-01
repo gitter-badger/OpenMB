@@ -6,6 +6,7 @@ using Mogre;
 using Mogre.PhysX;
 using OpenMB.Utilities;
 using OpenMB.Game.ItemTypes;
+using OpenMB.Mods.XML;
 
 namespace OpenMB.Game
 {
@@ -13,7 +14,7 @@ namespace OpenMB.Game
     /// <summary>
     /// Item Type
     /// </summary>
-    public enum ItemType
+    public enum ItemValidType
     {
         IT_INVALID,             //default value
         IT_AMMUNITION,          //Ammo
@@ -78,29 +79,16 @@ namespace OpenMB.Game
         protected int ownerID;
         protected string itemName;
         protected string itemMeshName;
-        protected IItemType itemType2;
-        protected ItemType itemType;
+        protected IItemType itemType;
         protected ItemHaveAttachOption itemAttachOptionWhenHave;
         protected ItemUseAttachOption itemAttachOptionWhenUse;
-        protected List<Cartridge> cartridges;
         private Character user;
         public event Action<int, int> OnWeaponAttack;
 
         #region Render
-        private Entity itemEnt;
-        private SceneNode itemNode;
         private Actor itemActor;
+        private ModItemDfnXML itemData;
         #endregion
-
-        public int ItemID
-        {
-            get { return itemID; }
-        }
-        public virtual ItemType ItemType
-        {
-            get { return itemType; }
-            set { itemType = value; }
-        }
         public string ItemMeshName
         {
             get { return itemMeshName; }
@@ -113,7 +101,14 @@ namespace OpenMB.Game
         }
         public Entity ItemEnt
         {
-            get { return itemEnt; }
+            get { return mesh.Entity; }
+        }
+        public string ItemTypeID
+        {
+            get
+            {
+                return itemData.ID;
+            }
         }
         public ItemUseAttachOption ItemAttachOption
         {
@@ -133,48 +128,29 @@ namespace OpenMB.Game
         public virtual Type Ammo { get; set; }
         public virtual int AmmoCapcity { get; set; }
         public virtual string[] Animations { get; set; }
+        public GameObject LinkedGameObject { get; set; } //Use ItemType to check its type
 
-        public Item(GameWorld world, int id, int ownerID = -1) : base(id, world)
+        public Item(GameWorld world, IItemType itemType, ModItemDfnXML itemData, bool createNow = false) : base(-1, world)
         {
-            this.itemID = id;
-            this.itemName = "";
-            this.itemMeshName = "";
-            this.itemType = ItemType.IT_INVALID;
-            this.ownerID = ownerID;
-        }
-
-        public Item(
-            int id,
-            string itemName, string itemMeshName, ItemType itemType, 
-            ItemHaveAttachOption itemAttachOptionWhenHave,
-            ItemUseAttachOption itemAttachOptionWhenUse,
-            GameWorld world) : base(id, world)
-        {
-            this.itemName = itemName;
-            this.itemMeshName = itemMeshName;
             this.itemType = itemType;
-            this.itemAttachOptionWhenUse = itemAttachOptionWhenUse;
-            this.itemAttachOptionWhenHave = itemAttachOptionWhenHave;
+            this.itemData = itemData;
 
-            health = new HealthInfo(this, int.MaxValue, false);
+            this.itemType.Item = this;
 
-            create();
+            if (createNow)
+            {
+                create();
+            }
         }
 
-        public Item(
-            string id,
-            string itemName, 
-            string itemMeshName, 
-            IItemType itemType,
-            ItemHaveAttachOption itemAttachOptionWhenHave,
-            ItemUseAttachOption itemAttachOptionWhenUse) : base(id)
+        public void SpawnIntoWorld()
         {
-            SetID(id);
-            this.itemName = itemName;
-            this.itemMeshName = itemMeshName;
-            this.itemType2 = itemType;
-            this.itemAttachOptionWhenHave = itemAttachOptionWhenHave;
-            this.itemAttachOptionWhenUse = itemAttachOptionWhenUse;
+            itemType.SpawnIntoWorld();
+        }
+
+        public void SpawnIntoCharacter(Character character)//Spawn and attach into the character
+        {
+            itemType.SpawnIntoCharacter(world, character);
         }
 
         public void Attack(int victimId)
@@ -185,38 +161,43 @@ namespace OpenMB.Game
             }
         }
 
+        public void Spawn()
+        {
+            create();
+        }
+
         protected override void create()
         {
-            itemEnt = camera.SceneManager.CreateEntity(itemName,itemMeshName);
-            itemNode = camera.SceneManager.RootSceneNode.CreateChildSceneNode();
-            itemNode.AttachObject(itemEnt);
+            mesh.Entity = mesh.SceneManager.CreateEntity(Guid.NewGuid().ToString(),itemData.MeshName);
+			mesh.EntityNode = mesh.SceneManager.RootSceneNode.CreateChildSceneNode();
+			mesh.EntityNode.AttachObject(mesh.Entity);
 
             ActorDesc actorDesc = new ActorDesc();
             actorDesc.Density = 4;
             actorDesc.Body = null;
             actorDesc.Shapes.Add(physics.CreateTriangleMesh(new
-                StaticMeshData(itemEnt.GetMesh())));
+                StaticMeshData(mesh.Entity.GetMesh())));
             itemActor = physicsScene.CreateActor(actorDesc);
         }
 
         protected override void create(GameWorld world)
         {
             base.create(world);
-            itemEnt = camera.SceneManager.CreateEntity(itemName, itemMeshName);
-            itemNode = camera.SceneManager.RootSceneNode.CreateChildSceneNode();
-            itemNode.AttachObject(itemEnt);
+			mesh.Entity = mesh.SceneManager.CreateEntity(itemName, itemMeshName);
+			mesh.EntityNode = mesh.SceneManager.RootSceneNode.CreateChildSceneNode();
+			mesh.EntityNode.AttachObject(mesh.Entity);
 
             ActorDesc actorDesc = new ActorDesc();
             actorDesc.Density = 4;
             actorDesc.Body = null;
             actorDesc.Shapes.Add(physics.CreateTriangleMesh(new
-                StaticMeshData(itemEnt.GetMesh())));
+                StaticMeshData(mesh.Entity.GetMesh())));
             itemActor = physicsScene.CreateActor(actorDesc);
         }
 
         public void Drop()
         {
-            itemNode.DetachObject(ItemEnt);
+            mesh.EntityNode.DetachObject(ItemEnt);
         }
 
         /// <summary>
@@ -260,5 +241,10 @@ namespace OpenMB.Game
         {
 
         }
-    }
+
+		public override MaterialPtr RenderPreview()
+		{
+			return itemType.RenderPreview(mesh.Entity);
+		}
+	}
 }

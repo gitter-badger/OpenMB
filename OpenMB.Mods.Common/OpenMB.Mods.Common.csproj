@@ -13,28 +13,9 @@
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>..\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>..\</OutputPath>
+    <OutputPath>..\Bin\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
@@ -43,14 +24,15 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
-    <OutputPath>..\</OutputPath>
+    <OutputPath>..\Bin\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
+    <DebugType>none</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>false</Prefer32Bit>
+    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Mogre, Version=1.7.4.0, Culture=neutral, processorArchitecture=x86">
@@ -66,8 +48,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Flags\Music\MusicFlagPlayVolume.cs" />
+    <Compile Include="ItemTypes\ItemTypeArmour.cs" />
+    <Compile Include="ItemTypes\ItemTypeOneHandWeapon.cs" />
+    <Compile Include="ItemTypes\ItemTypeRideDrive.cs" />
     <Compile Include="ItemTypes\ItemTypeRifle.cs" />
+    <Compile Include="ItemTypes\ItemTypeVehicle.cs" />
     <Compile Include="MapLoaders\MapLoaderBSP.cs" />
+    <Compile Include="MapLoaders\MapLoaderWorldMapXml.cs" />
     <Compile Include="MapLoaders\MapLoaderXml.cs" />
     <Compile Include="ModelTypes\ItemDefineModelType.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -75,6 +63,8 @@
     <Compile Include="Settings\HasMultiplayerModSetting.cs" />
     <Compile Include="Settings\HasSavedGameModSetting.cs" />
     <Compile Include="StartupActions\LoadBrfAction.cs" />
+    <Compile Include="StartupBackgroundTypes\AviMovieStartupBackground.cs" />
+    <Compile Include="StartupBackgroundTypes\TextureStartupBackground.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\OpenMB\OpenMB.csproj">
@@ -82,15 +72,9 @@
       <Name>OpenMB</Name>
     </ProjectReference>
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>copy $(TargetPath) $(SolutionDir)Mods\common\$(TargetFileName) /V /Y</PostBuildEvent>
-  </PropertyGroup>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
+  <ItemGroup />
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <Target Name="AfterBuild">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(SolutionDir)Bin\Mods\common\" />
   </Target>
-  -->
 </Project>

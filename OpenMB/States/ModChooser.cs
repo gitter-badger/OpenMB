@@ -7,21 +7,33 @@ using Mogre_Procedural.MogreBites;
 using MOIS;
 using OpenMB.Localization;
 using OpenMB.Mods;
+using OpenMB.Widgets;
 
 namespace OpenMB.States
 {
     using Mods = Dictionary<string, ModManifest>;
 
+    public class ModDisplayData
+    {
+        public readonly string ID;
+        public string Name { get; set; }
+        public string Desc { get; set; }
+        public string Thumb { get; set; }
+
+        public ModDisplayData(string id)
+        {
+            ID = id;
+        }
+    }
+
     public class ModChooser : AppState
     {
         private bool isQuit;
-        private SelectMenu modChooserMenu;
-        private Label modTitle;
-        private TextBox modDescBox;
+        private SelectMenuWidget modChooserMenu;
+        private LabelWidget modTitle;
+        private StaticMultiLineTextBoxWidget modDescBox;
         private Slider modSlider;
-        private StringVector modNames;
-        private StringVector modDescs;
-        private StringVector modThumb;
+        private List<ModDisplayData> modDisplayDataList;
         private Mods mods;
         private List<OverlayContainer> modThumbs;
         private float carouselPlace;
@@ -30,11 +42,8 @@ namespace OpenMB.States
         public ModChooser()
         {
             isQuit = false;
-
-            modNames = new StringVector();
-            modThumb = new StringVector();
-            modDescs = new StringVector();
             modThumbs = new List<OverlayContainer>();
+            modDisplayDataList = new List<ModDisplayData>();
         }
 
         public override void enter(ModData e = null)
@@ -53,39 +62,40 @@ namespace OpenMB.States
             camera.AspectRatio = GameManager.Instance.viewport.ActualWidth / GameManager.Instance.viewport.ActualHeight;
 
             GameManager.Instance.viewport.Camera = camera;
-            modNames.Clear();
-            modThumb.Clear();
+            modDisplayDataList.Clear();
 
             mods = ModManager.Instance.GetInstalledMods();
-            foreach (var mod in mods)
+            foreach (var pair in mods)
             {
-                if (mod.Value.MetaData.DisplayInChooser)
+                if (pair.Value.MetaData.DisplayInChooser)
                 {
-                    modNames.Add(mod.Key);
-                    modDescs.Add(mod.Value.MetaData.Description);
-                    modThumb.Add(mod.Value.MetaData.Thumb);
+                    ModDisplayData modDisplayData = new ModDisplayData(pair.Value.ID);
+                    modDisplayData.Name = pair.Value.MetaData.Name;
+                    modDisplayData.Desc = pair.Value.MetaData.Description;
+                    modDisplayData.Thumb = pair.Value.MetaData.Thumb;
+                    modDisplayDataList.Add(modDisplayData);
                 }
             }
 
-            GameManager.Instance.trayMgr.destroyAllWidgets();
-            modTitle = GameManager.Instance.trayMgr.createLabel(TrayLocation.TL_LEFT, "ModTitle", "Mod Info");
+            UIManager.Instance.DestroyAllWidgets();
+            modTitle = UIManager.Instance.CreateLabel(UIWidgetLocation.TL_CENTER, "ModTitle", "Mod Info");
             modTitle.setCaption("Mod Info");
-            modDescBox = GameManager.Instance.trayMgr.createTextBox(TrayLocation.TL_LEFT, "ModInfo", "Mod Info", 250, 208);
+            modDescBox = UIManager.Instance.CreateTextBox(UIWidgetLocation.TL_CENTER, "ModInfo", "Mod Info", 250, 208);
             modDescBox.setCaption("Mod Info");
-            modChooserMenu = GameManager.Instance.trayMgr.createThickSelectMenu(TrayLocation.TL_LEFT, "SelMod", "Select Mod", 250, 10);
+            modChooserMenu = UIManager.Instance.CreateThickSelectMenu(UIWidgetLocation.TL_CENTER, "SelMod", "Select Mod", 250, 10);
             modChooserMenu.setCaption("Select Mod");
-            modChooserMenu.setItems(modNames);
-            modSlider = GameManager.Instance.trayMgr.createThickSlider(TrayLocation.TL_LEFT, "ModSlider", "Slider Mods", 250, 80, 0, 0, 0);
+            modChooserMenu.SetItems(modDisplayDataList.Select(o=>o.Name).ToList());
+            modSlider = UIManager.Instance.CreateThickSlider(UIWidgetLocation.TL_CENTER, "ModSlider", "Slider Mods", 250, 80, 0, 0, 0);
             modSlider.setCaption("Slider Mods");
-            if (modNames.Count > 0)
+            if (modDisplayDataList.Count > 0)
             {
                 modTitle.setCaption(modChooserMenu.getSelectedItem());
             }
 
-            GameManager.Instance.trayMgr.showLogo(TrayLocation.TL_RIGHT);
-            GameManager.Instance.trayMgr.createSeparator(TrayLocation.TL_RIGHT, "LogoSep");
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_RIGHT, "Play", LocateSystem.Instance.GetLocalizedString(Localization.LocateFileType.GameString, "str_play"), 140);
-            GameManager.Instance.trayMgr.createButton(TrayLocation.TL_RIGHT, "Quit", LocateSystem.Instance.GetLocalizedString(Localization.LocateFileType.GameString, "str_quit"), 140);
+            UIManager.Instance.ShowLogo(UIWidgetLocation.TL_RIGHT);
+            UIManager.Instance.CreateSeparator(UIWidgetLocation.TL_RIGHT, "LogoSep");
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_RIGHT, "Play", LocateSystem.Instance.GetLocalizedString(Localization.LocateFileType.GameString, "str_play"), 140);
+            UIManager.Instance.CreateButton(UIWidgetLocation.TL_RIGHT, "Quit", LocateSystem.Instance.GetLocalizedString(Localization.LocateFileType.GameString, "str_quit"), 140);
             
             setupModMenu();
 
@@ -132,36 +142,54 @@ namespace OpenMB.States
                     frame.BorderMaterialName = "SdkTrays/Frame";
             }
 
-            GameManager.Instance.trayMgr.frameRenderingQueued(evt);
+            UIManager.Instance.FrameRenderingQueued(evt);
 
             return true;
         }
 
         bool Mouse_MouseReleased(MouseEvent arg, MouseButtonID id)
         {
-            return GameManager.Instance.trayMgr.injectMouseUp(arg, id);
+            UIManager.Instance.InjectMouseUp(arg, id);
+			return true;
         }
 
         bool Mouse_MousePressed(MouseEvent arg, MouseButtonID id)
         {
-            return GameManager.Instance.trayMgr.injectMouseDown(arg, id);
+            UIManager.Instance.InjectMouseDown(arg, id);
+			return true;
         }
 
         bool Mouse_MouseMoved(MOIS.MouseEvent arg)
         {
 
             MouseState_NativePtr state = arg.state;
-            if (arg.state.Z.rel != 0 && modChooserMenu.getNumItems() != 0)
+            if (arg.state.Z.rel != 0 && modChooserMenu.GetNumItems() != 0)
             {
                 float newIndex = modChooserMenu.getSelectionIndex() - arg.state.Z.rel / Mogre.Math.Abs((float)arg.state.Z.rel);
-                float finalIndex = OpenMB.Utilities.Helper.Clamp<float>(newIndex, 0.0f, (float)(modChooserMenu.getNumItems() - 1));
-                modChooserMenu.selectItem((uint)finalIndex);
-                modTitle.setCaption(modChooserMenu.getSelectedItem());
-                modDescBox.setText(modDescs[modNames.ToList().IndexOf(modChooserMenu.getSelectedItem())]);
+                float finalIndex = OpenMB.Utilities.Helper.Clamp<float>(newIndex, 0.0f, (float)(modChooserMenu.GetNumItems() - 1));
+               
+                modChooserMenu.SelectItem((uint)finalIndex);
+                //modTitle.setCaption("modChooserMenu.getSelectedItem()");
+                modTitle.setCaption(
+                    LocateSystem.Instance.GetLocalizedString(
+                        "module_info_name", 
+                        modChooserMenu.getSelectedItem(),
+                        modDisplayDataList[modChooserMenu.Items.IndexOf(modChooserMenu.getSelectedItem())].ID
+                    ));
+
+                //modDescBox.setText(modDisplayDataList[modChooserMenu.Items.IndexOf(modChooserMenu.getSelectedItem())].Desc);
+                modDescBox.setText(
+                    LocateSystem.Instance.GetLocalizedString(
+                        "module_info_desc",
+                        modDisplayDataList[modChooserMenu.Items.IndexOf(modChooserMenu.getSelectedItem())].Desc,
+                        modDisplayDataList[modChooserMenu.Items.IndexOf(modChooserMenu.getSelectedItem())].ID
+                    ));
+
                 selectedModName = modChooserMenu.getSelectedItem();
             }
 
-            return GameManager.Instance.trayMgr.injectMouseMove(arg);
+			UIManager.Instance.InjectMouseMove(arg);
+			return true;
         }
 
         public override bool pause()
@@ -184,7 +212,7 @@ namespace OpenMB.States
             GameManager.Instance.root.FrameRenderingQueued -= new FrameListener.FrameRenderingQueuedHandler(FrameRenderingQueued);
             foreach (BorderPanelOverlayElement bp in modThumbs)
             {
-                GameManager.Instance.trayMgr.getTraysLayer().Remove2D(bp);
+                UIManager.Instance.GetTraysLayer().Remove2D(bp);
             }
 
             GameManager.Instance.mouse.MouseMoved -= Mouse_MouseMoved;
@@ -202,18 +230,18 @@ namespace OpenMB.States
             }
         }
 
-        public override void buttonHit(Button button)
+        public override void buttonHit(ButtonWidget button)
         {
-            if (button.getName() == "Play")
+            if (button.Name == "Play")
             {
                 GameManager.Instance.loadingData = new LoadingData(LoadingType.LOADING_MOD, "Loading Mod...Please wait", selectedModName, "MainMenu");
                 changeAppState(findByName("Loading"));
             }
-            else if (button.getName() == "Configure")
+            else if (button.Name == "Configure")
             {
                 ConfigureScreen();
             }
-            else if (button.getName() == "Quit")
+            else if (button.Name == "Quit")
             {
                 isQuit = true;
             }
@@ -225,15 +253,15 @@ namespace OpenMB.States
             thumbMat.GetTechnique(0).GetPass(0).CreateTextureUnitState();
             MaterialPtr templateMat = MaterialManager.Singleton.GetByName("ModThumbnail");
 
-            foreach ( string itr in modThumb )
+            foreach ( var modDisplayData in modDisplayDataList )
             {
                 string name = "ModThumb" + (modThumbs.Count + 1).ToString();
 
                 MaterialPtr newMat = templateMat.Clone(name);
 
                 TextureUnitState tus = newMat.GetTechnique(0).GetPass(0).GetTextureUnitState(0);
-                if (ResourceGroupManager.Singleton.ResourceExists("General", itr))
-                    tus.SetTextureName(itr);
+                if (ResourceGroupManager.Singleton.ResourceExists("General", modDisplayData.Thumb))
+                    tus.SetTextureName(modDisplayData.Thumb);
                 else
                     tus.SetTextureName("thumb_error.png");
 
@@ -244,7 +272,7 @@ namespace OpenMB.States
                 bp.HorizontalAlignment=(GuiHorizontalAlignment. GHA_RIGHT);
                 bp.VerticalAlignment=(GuiVerticalAlignment. GVA_CENTER);
                 bp.MaterialName=(name);
-                GameManager.Instance.trayMgr.getTraysLayer().Add2D(bp);
+                UIManager.Instance.GetTraysLayer().Add2D(bp);
 
                 modThumbs.Add(bp);
             }  

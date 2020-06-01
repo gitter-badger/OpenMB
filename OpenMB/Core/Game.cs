@@ -1,4 +1,5 @@
-﻿using OpenMB.Forms;
+﻿using Mogre;
+using OpenMB.Forms;
 using OpenMB.Forms.Controller;
 using System;
 using System.Collections.Generic;
@@ -33,18 +34,19 @@ namespace OpenMB.Core
             string modArg = gameArgument.GetArgValue("Engine.Mod");
 
             string showConfigArg = gameArgument.GetArgValue("Engine.ShowConfig");
-            //if (string.IsNullOrEmpty(showConfigArg) || showConfigArg == "yes")
-            //{
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                frmConfigureController controller = new frmConfigureController(new frmConfigure(modArg));
-                controller.form.ShowDialog();
-            //}
-            //else
-            //{
-            //    GameApp app = new GameApp(null, modArg);
-            //    app.Run();
-            //}
+            if (string.IsNullOrEmpty(showConfigArg) || showConfigArg == "yes")
+            {
+                 Application.EnableVisualStyles();
+                 Application.SetCompatibleTextRenderingDefault(false);
+                 frmConfigureController controller = new frmConfigureController(new frmConfigure(modArg));
+                 controller.form.ShowDialog();
+            }
+            else
+            {
+                Root root = new Root();
+                GameApp app = new GameApp(GameConfigXml.Load("game.xml", root), modArg);
+                app.Run();
+            }
         }
     }
 }

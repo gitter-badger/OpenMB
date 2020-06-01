@@ -7,10 +7,14 @@ using System.Xml.Serialization;
 namespace OpenMB.Mods.XML
 {
     public class ModDataXML
-    {
-        [XmlElement("Characters")]
+	{
+		[XmlElement("Animations")]
+		public string animationXml { get; set; }
+		[XmlElement("Characters")]
         public string characterXML { get; set; }
-        [XmlElement("Music")]
+		[XmlElement("Cursors")]
+		public string cursorsXml { get; set; }
+		[XmlElement("Music")]
         public string musicXML { get; set; }
         [XmlElement("Sound")]
         public string soundXML { get; set; }
@@ -36,9 +40,17 @@ namespace OpenMB.Mods.XML
         public string modelsXml { get; set; }
 		[XmlElement("Menus")]
 		public string menusXml { get; set; }
-		[XmlElement]
+		[XmlElement("Strings")]
+		public string stringsXml { get; set; }
+		[XmlElement("UILayouts")]
+		public string uiLayoutsXml { get; set; }
+		[XmlElement("MapTemplates")]
+		public string mapTemplatesXml { get; set; }
+        [XmlElement("Vehicles")]
+        public string vehicleXml { get; set; }
+        [XmlElement]
         public ModDataDirXML DataDir { get; set; }
-    }
+	}
 
     public class ModDataDirXML
     {

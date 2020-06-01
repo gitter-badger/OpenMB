@@ -29,17 +29,19 @@ namespace DotSceneLoader
         protected TerrainGlobalOptions mTerrainOptions;
 
         private BackgroundWorker worker;
+		private GameMap map;
 
         #endregion Fields
 
         #region Constructors
 
-        public DotSceneLoader()
+        public DotSceneLoader(GameMap map)
         {
             mTerrainOptions = new TerrainGlobalOptions();
             worker = new BackgroundWorker();
             worker.DoWork += LoadSceneAsync;
             worker.RunWorkerCompleted += LoadSceneCompleted;
+			this.map = map;
         }
 
         private void LoadSceneCompleted(object sender, RunWorkerCompletedEventArgs e)
@@ -507,9 +509,20 @@ namespace DotSceneLoader
 
             // Setup the light range
             pLight.SetSpotlightRange(new Radian((Degree)inner), new Radian((Degree)outer), falloff);
-        }
+		}
 
-        protected void processNode(XmlElement XMLNode, SceneNode pParent)
+		protected void processSceneProp(XmlElement XMLNode, SceneNode pParent)
+		{
+			// Construct the node's name
+			string id = m_sPrependNode + getAttrib(XMLNode, "ID");
+
+			XmlElement pElement;
+			pElement = (XmlElement)XMLNode.SelectSingleNode("position");
+			Vector3 position = parseVector3(pElement);
+			map.CreateSceneProp(id, position);
+		}
+
+		protected void processNode(XmlElement XMLNode, SceneNode pParent)
         {
             // Construct the node's name
             String name = m_sPrependNode + getAttrib(XMLNode, "name");
@@ -573,10 +586,17 @@ namespace DotSceneLoader
             if (pElement != null)
             {
                 processEntity(pElement, pNode);
-            }
+			}
 
-            // Process light (*)
-            pElement = (XmlElement)XMLNode.SelectSingleNode("light");
+			// Process entity (*)
+			pElement = (XmlElement)XMLNode.SelectSingleNode("scene_prop");
+			if (pElement != null)
+			{
+				processEntity(pElement, pNode);
+			}
+
+			// Process light (*)
+			pElement = (XmlElement)XMLNode.SelectSingleNode("light");
             if (pElement != null)
             {
                 processLight(pElement, pNode);
@@ -688,8 +708,13 @@ namespace DotSceneLoader
 
             XmlElement pElement;
 
-            // Process nodes (?)
-            pElement = (XmlElement)XMLRoot.SelectSingleNode("nodes");
+			// Process nodes (?)
+			pElement = (XmlElement)XMLRoot.SelectSingleNode("scene_props");
+			if (pElement != null)
+				processSceneProps(pElement);
+
+			// Process nodes (?)
+			pElement = (XmlElement)XMLRoot.SelectSingleNode("nodes");
             if (pElement != null)
                 processNodes(pElement);
 
@@ -721,7 +746,26 @@ namespace DotSceneLoader
             }
         }
 
-        protected void processUserDataReference(XmlElement XMLNode, SceneNode pNode)
+		private void processSceneProps(XmlElement XMLNode)
+		{
+			XmlElement pElement;
+
+			// Process node (*)
+			pElement = (XmlElement)XMLNode.SelectSingleNode("scene_prop");
+			while (pElement != null)
+			{
+				processSceneProp(pElement, null);
+				XmlNode nextNode = pElement.NextSibling;
+				pElement = nextNode as XmlElement;
+				while (pElement == null && nextNode != null)
+				{
+					nextNode = nextNode.NextSibling;
+					pElement = nextNode as XmlElement;
+				}
+			}
+		}
+
+		protected void processUserDataReference(XmlElement XMLNode, SceneNode pNode)
         {
             // TODO
         }

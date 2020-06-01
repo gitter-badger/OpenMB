@@ -5,11 +5,20 @@ using System.Text;
 using System.IO;
 using Mogre;
 using System.Runtime.InteropServices;
+using System.Drawing;
 
 namespace OpenMB.Utilities
 {
-    public class Helper
+    public static class Helper
     {
+        [DllImport("user32.dll")]
+        private static extern int SendMessage(IntPtr hWnd, int wMsg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll")]
+        private static extern int DrawMenuBar(int currentWindow);
+
+        private const int WM_SETICON = 0x80;
+        private const int ICON_SMALL = 0;
+
         public static float Clamp(float val, float minval, float maxval)
         {
             return System.Math.Max(System.Math.Min(val, maxval), minval);
@@ -103,7 +112,7 @@ namespace OpenMB.Utilities
             return null;
         }
 
-        public static ColourValue HexToRgb(string hexstr)
+        public static ColourValue HexToRgb(this string hexstr)
         {
             ColourValue cv = new ColourValue();
             if (hexstr.StartsWith("0x") && hexstr.Length == 8)
@@ -190,5 +199,49 @@ namespace OpenMB.Utilities
 
             return worldCoord;
         }
-    }
+
+		public static T Random<T>(this IEnumerable<T> list)
+		{
+			if (list.Count() == 0)
+			{
+				return default(T);
+			}
+			Random random = new Random(list.Count());
+			int rIndex = random.Next(0, list.Count());
+			return list.ElementAt(rIndex);
+		}
+
+		public static ColourValue ToColourValue(this Color color)
+		{
+			return new ColourValue(
+				(float)color.R / (float)255, 
+				(float)color.G / (float)255, 
+				(float)color.B / (float)255, 
+				(float)color.A / (float)255
+			);
+		}
+
+		public static string ToUILocalizedString(this string strID)
+		{
+			return Localization.LocateSystem.Instance.GetLocalizedString(Localization.LocateFileType.GameUI, strID);
+		}
+
+		public static string ToStrLocalizedString(this string strID)
+		{
+			return Localization.LocateSystem.Instance.GetLocalizedString(Localization.LocateFileType.GameString, strID);
+		}
+
+		public static string ToLocalizedString(this string strID, string originalString = null)
+		{
+			return Localization.LocateSystem.Instance.GetLocalizedString(strID, originalString);
+		}
+
+        public static void SetRenderWindowIcon(Icon icon, IntPtr hwnd)
+        {
+            if (icon == null || hwnd == null || hwnd == IntPtr.Zero) // check parameters
+                return;
+            SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_SMALL, (IntPtr)icon.Handle); // Set the icon with SendMessage
+            DrawMenuBar((int)hwnd);
+        }
+	}
 }

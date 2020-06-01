@@ -1,0 +1,8 @@
+<Tracks>
+  <Track ID="game_title" Type="ModuleTrack" PlayType="MainMenu">
+    <File>oim_mount_and_blade_title_screen.ogg</File>
+	<Flags>
+		<Flag Name="MusicPlayVolume">8</Flag>
+	</Flags>
+  </Track>
+</Tracks>

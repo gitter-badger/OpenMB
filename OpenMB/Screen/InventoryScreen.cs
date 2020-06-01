@@ -4,29 +4,29 @@ using System.Linq;
 using System.Text;
 using Mogre_Procedural.MogreBites;
 using Mogre;
-using OpenMB.Widgets;
 using OpenMB.Game;
+using OpenMB.Mods.XML;
+using OpenMB.Widgets;
+using OpenMB.Utilities;
 using MOIS;
 
 namespace OpenMB.Screen
 {
     public class InventoryScreen : Screen
     {
-        private List<OverlayElement> elements;
-        private OverlayContainer equipmentPanel;
-        private OverlayContainer previewPanel;
-        private OverlayContainer backpackPanel;
-        private int row;
-        private int col;
-        private const float INV_WIDTH = 0.12f;
-        private Entity ent;
-        private SceneNode sceneNode;
-        private string meshName;
-        private Overlay meshLayer;
-        private string[] animNames;
-        private AnimationState baseAnim;
-        private AnimationState topAnim;
-        public override event Action OnScreenExit;
+		private GameWorld world;
+		private GameObject gameObject;
+		private string chaID;
+		private ModCharacterDfnXML chaData;
+		private PanelWidget discordPanel;
+		private PanelWidget discordInventoryPanel;
+		private PanelWidget playerPanel;
+		private PanelWidget playerEquipPanel;
+		private PanelWidget playerPreviewPanel;
+		private PanelWidget backpackPanel;
+		private PanelScrollableWidget backpackInventoryPanel;
+		private Overlay meshLayer;
+
         public override string Name
         {
             get
@@ -37,109 +37,214 @@ namespace OpenMB.Screen
 
         public InventoryScreen()
         {
-            elements = new List<OverlayElement>();
         }
 
         /// <summary>
         /// Init parameters:
-        /// 1. meshName
-        /// 2. animation name array
-        ///     a. animation top name
-        ///     b. animation base name
+        /// character ID
         /// </summary>
         /// <param name="param"></param>
         public override void Init(params object[] param)
         {
             if (param.Length > 0)
             {
-                meshName = param[0].ToString();
-                animNames = param[1] as string[];
+				world = param[0] as GameWorld;
+				chaID = param[1].ToString();
             }
-            GameManager.Instance.trayMgr.destroyAllWidgets();
+            UIManager.Instance.DestroyAllWidgets();
         }
 
         public override void Run()
-        {
-            meshLayer = OverlayManager.Singleton.Create("CharacterPreview");
-            meshLayer.ZOrder = 999;
+		{
+			var moddata = ScreenManager.Instance.ModData;
+			chaData = moddata.CharacterInfos.Where(o => o.ID == chaID).FirstOrDefault();
+			if (chaData == null)
+			{
+				throw new Exception("Character Data can't be null!");
+			}
 
-            SceneManager scm = ScreenManager.Instance.Camera.SceneManager;
-            ent = scm.CreateEntity(Guid.NewGuid().ToString(), meshName);
-            sceneNode = scm.CreateSceneNode();
-            sceneNode.Translate(new Mogre.Vector3(0, 0, 0));
-            sceneNode.Rotate(Quaternion.IDENTITY);
-            float lenght = ent.BoundingBox.Size.Length * 2;
-            sceneNode.Translate(new Mogre.Vector3(-7f, 5f, -1.0f * lenght));
-            ent.RenderQueueGroup = (byte)RenderQueueGroupID.RENDER_QUEUE_MAX;
-            ent.Skeleton.BlendMode = SkeletonAnimationBlendMode.ANIMBLEND_CUMULATIVE;
+			var skinData = moddata.SkinInfos.Where(o => o.ID == chaData.Skin).FirstOrDefault();
+			if (skinData == null)
+			{
+				throw new Exception("Character Skin Data can't be null!");
+			}
 
-            baseAnim = ent.GetAnimationState(animNames[1]);
-            topAnim = ent.GetAnimationState(animNames[0]);
-            baseAnim.Enabled = true;
-            topAnim.Enabled = true;
-            baseAnim.Loop = true;
-            topAnim.Loop = true;
+			var idleSkinAnim = skinData[ChaAnimType.CAT_IDLE];
+			if (idleSkinAnim == null)
+			{
+				throw new Exception("Idle Skin Anim Data can't be null!");
+			}
 
-            sceneNode.AttachObject(ent);
-            meshLayer.Add3D(sceneNode);
-            meshLayer.Show();
+			var idleAnim = moddata.AnimationInfos.Where(o => o.ID == idleSkinAnim.AnimID).FirstOrDefault();
+			if (idleAnim == null)
+			{
+				throw new Exception("Idle Anim Data can't be null!");
+			}
 
-            equipmentPanel = OverlayManager.Singleton.CreateOverlayElementFromTemplate("CharacterEquipment", "BorderPanel", "inventoryPanelLeftArea") as OverlayContainer;
-            previewPanel = OverlayManager.Singleton.CreateOverlayElementFromTemplate("CharacterPreview", "BorderPanel", "inventoryPanelMiddleArea") as OverlayContainer;
-            backpackPanel = OverlayManager.Singleton.CreateOverlayElementFromTemplate("CharacterBackpack", "BorderPanel", "inventoryPanelRightArea") as OverlayContainer;
-            row = (int)System.Math.Round((backpackPanel.Height - 0.04) / INV_WIDTH);
-            col = (int)System.Math.Round((backpackPanel.Width - 0.04) / INV_WIDTH);
+			discordPanel = UIManager.Instance.CreatePanel("discordPanel", 0.3f, 1);
+			discordPanel.Padding.PaddingLeft = 0.01f;
+			discordPanel.Padding.PaddingRight = 0.01f;
+			discordPanel.ChangeRow(Widgets.ValueType.Abosulte, 0.05f);
+			discordPanel.AddRow(Widgets.ValueType.Percent);
+			var txtDiscord = UIManager.Instance.CreateStaticText("txtDiscord", "Discord");
+			txtDiscord.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			discordInventoryPanel = UIManager.Instance.CreatePanel("discordInventoryPanel", 0.3f, 1, 0, 0, 9, 3);
+			discordPanel.AddWidget(1, 1, txtDiscord, AlignMode.Center);
+			discordPanel.AddWidget(2, 1, discordInventoryPanel, AlignMode.Center, DockMode.Fill);
 
-            int row_counter = 1;
-            int col_counter = 1;
-            float topValue = 0.0f;
-            float leftValue = 0.0f;
+			int currRow = 1;
+			int currCol = 1;
+			for (int i = 0; i < 9; i++)
+			{
+				var invSlot = new PanelTemplateWidget("DiscordInvSlot_" + (i + 1).ToString(), "InventorySlot");
+				discordInventoryPanel.AddWidgetRelative(currRow, currCol, invSlot, AlignMode.Center, DockMode.Fill);
+				if ((i + 1) % 3 == 0)
+				{
+					currRow++;
+					currCol = 1;
+				}
+				else
+				{
+					currCol++;
+				}
+			}
 
-            for (int i = 0; i < 35; i++)
-            {
-                if (i == 0)
-                {
-                    topValue = 0.02f;
-                    leftValue = 0.02f;
-                }
-                else if (col_counter <= col)
-                {
-                    leftValue += INV_WIDTH;
-                }
-                else
-                {
-                    topValue +=  INV_WIDTH;
-                    col_counter = 1;
-                    row_counter++;
-                    leftValue = 0.02f;
-                }
-                OverlayElement invSlotElement = OverlayManager.Singleton.CreateOverlayElementFromTemplate("InventorySlot", "BorderPanel", "INV_NO_"+i.ToString());
-                invSlotElement.MetricsMode = GuiMetricsMode.GMM_RELATIVE;
-                invSlotElement.Left = leftValue;
-                invSlotElement.Top = topValue;
-                invSlotElement.Width = INV_WIDTH;
-                invSlotElement.Height = INV_WIDTH;
-                if (row_counter <= row)
-                {
-                    backpackPanel.AddChild(invSlotElement);
-                }
-                else
-                {
-                    invSlotElement.Hide();
-                    backpackPanel.AddChild(invSlotElement);
-                }
-                elements.Add(invSlotElement);
-                col_counter++;
-            }
-            GameManager.Instance.trayMgr.getTraysLayer().Add2D(equipmentPanel);
-            GameManager.Instance.trayMgr.getTraysLayer().Add2D(previewPanel);
-            GameManager.Instance.trayMgr.getTraysLayer().Add2D(backpackPanel);
-        }
+
+			playerPanel = UIManager.Instance.CreatePanel("playerPanel", 0.4f, 1, 0.3f);
+			playerPanel.ChangeRow(Widgets.ValueType.Abosulte, 0.6f);
+			playerPanel.AddRow(Widgets.ValueType.Abosulte, 0.4f);
+
+			playerEquipPanel = UIManager.Instance.CreatePanel("playerEquipPanel", 1, 1);
+			playerEquipPanel.Padding.PaddingLeft = 0.01f;
+			playerEquipPanel.Padding.PaddingRight = 0.01f;
+			playerPreviewPanel = UIManager.Instance.CreatePanel("playerPreviewPanel", 1, 1);
+			playerPreviewPanel.Padding.PaddingLeft = 0.01f;
+			playerPreviewPanel.Padding.PaddingRight = 0.01f;
+			playerPreviewPanel.ChangeCol(Widgets.ValueType.Abosulte, 0.6f);
+			playerPreviewPanel.AddCol(Widgets.ValueType.Abosulte, 0.4f);
+			playerPreviewPanel.AddRow(Widgets.ValueType.Abosulte, 0.05f);
+			playerPreviewPanel.AddRow(Widgets.ValueType.Abosulte, 0.05f);
+			playerPreviewPanel.AddRow(Widgets.ValueType.Abosulte, 0.05f);
+			playerPreviewPanel.AddRow(Widgets.ValueType.Abosulte, 0.05f);
+			playerPreviewPanel.AddRow(Widgets.ValueType.Abosulte, 0.1f);
+
+			playerEquipPanel.ChangeRow(Widgets.ValueType.Abosulte, 0.05f);
+			playerEquipPanel.AddRow(Widgets.ValueType.Percent);
+			playerEquipPanel.AddRow(Widgets.ValueType.Percent);
+			playerEquipPanel.AddRow(Widgets.ValueType.Percent);
+			playerEquipPanel.AddRow(Widgets.ValueType.Percent);
+			playerEquipPanel.AddCol(Widgets.ValueType.Percent);
+			playerEquipPanel.AddCol(Widgets.ValueType.Percent);
+
+			playerPanel.AddWidget(1, 1, playerEquipPanel, AlignMode.Left, DockMode.Fill);
+			playerPanel.AddWidget(2, 1, playerPreviewPanel, AlignMode.Left, DockMode.Fill);
+
+			var txtOutfit = UIManager.Instance.CreateStaticText("txtOutfit", "Outfit");
+			var txtArms = UIManager.Instance.CreateStaticText("txtArms", "Arms");
+			txtOutfit.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			txtArms.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			playerEquipPanel.AddWidget(1, 2, txtOutfit, AlignMode.Center);
+			playerEquipPanel.AddWidget(1, 3, txtArms, AlignMode.Center);
+			for (int i = 0; i < 9; i++)
+			{
+				var equipSlot = new PanelTemplateWidget("EquipSlot_" + (i + 1).ToString(), "InventorySlot");
+				switch (i)
+				{
+					case 0:
+						playerEquipPanel.AddWidgetRelative(2, 2, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 1:
+						playerEquipPanel.AddWidgetRelative(3, 2, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 2:
+						playerEquipPanel.AddWidgetRelative(4, 2, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 3:
+						playerEquipPanel.AddWidgetRelative(5, 1, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 4:
+						playerEquipPanel.AddWidgetRelative(2, 3, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 5:
+						playerEquipPanel.AddWidgetRelative(3, 3, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 6:
+						playerEquipPanel.AddWidgetRelative(4, 3, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 7:
+						playerEquipPanel.AddWidgetRelative(3, 1, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+					case 8:
+						playerEquipPanel.AddWidgetRelative(5, 3, equipSlot, AlignMode.Center, DockMode.Fill);
+						break;
+				}
+			}
+
+			meshLayer = OverlayManager.Singleton.Create("CharacterPreview");
+			meshLayer.ZOrder = (ushort)(UIManager.Instance.GetCursorContainer().ZOrder - 1);
+			gameObject = new Character(world, chaData, skinData, new Mogre.Vector3(), true);
+			float length = gameObject.Mesh.Entity.BoundingBox.Size.Length * 2;
+			gameObject.Mesh.Entity.RenderQueueGroup = (byte)RenderQueueGroupID.RENDER_QUEUE_MAX;
+			gameObject.Mesh.EntityNode.Translate(new Mogre.Vector3(-2f, -6.3f, -1.0f * length));
+			gameObject.Mesh.EntityNode.Scale(0.7f, 0.8f, 0.8f);
+			meshLayer.Add3D(gameObject.MeshNode);
+			meshLayer.Show();
+
+			var txtPreviewHeadArmourTotal = UIManager.Instance.CreateStaticText("txtPreviewHeadArmourTotal", "Head Armour Total: 0");
+			var txtPreviewBodyArmourTotal = UIManager.Instance.CreateStaticText("txtPreviewBodyArmourTotal", "Body Armour Total: 0");
+			var txtPreviewLegArmourTotal = UIManager.Instance.CreateStaticText("txtPreviewLegArmourTotal", "Leg Armour Total: 0");
+			var txtPreviewEncumbrance = UIManager.Instance.CreateStaticText("txtPreviewEncumbrance", "Encumbrance: 0");
+			txtPreviewHeadArmourTotal.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			txtPreviewBodyArmourTotal.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			txtPreviewLegArmourTotal.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			txtPreviewEncumbrance.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			var btnReturn = UIManager.Instance.CreateButton("btnInventoryReturn", "Return", 200);
+			btnReturn.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			btnReturn.OnClick += (sender) =>
+			{
+				ScreenManager.Instance.ChangeScreenReturn();
+			};
+			playerPreviewPanel.AddWidget(2, 2, txtPreviewHeadArmourTotal, AlignMode.Center, DockMode.FillWidth);
+			playerPreviewPanel.AddWidget(3, 2, txtPreviewBodyArmourTotal, AlignMode.Center, DockMode.FillWidth);
+			playerPreviewPanel.AddWidget(4, 2, txtPreviewLegArmourTotal, AlignMode.Center, DockMode.FillWidth);
+			playerPreviewPanel.AddWidget(5, 2, txtPreviewEncumbrance, AlignMode.Center, DockMode.FillWidth);
+			playerPreviewPanel.AddWidget(6, 2, btnReturn, AlignMode.Center, DockMode.FillWidth);
+
+			backpackPanel = UIManager.Instance.CreatePanel("backpackPanel", 0.3f, 1, 0.7f, 0);
+			backpackPanel.Padding.PaddingRight = 0.01f;
+			backpackPanel.Padding.PaddingLeft = 0.01f;
+			backpackPanel.ChangeRow(Widgets.ValueType.Abosulte, 0.05f);
+			backpackPanel.AddRow(Widgets.ValueType.Percent);
+			backpackPanel.AddRow(Widgets.ValueType.Abosulte, 0.03f);
+
+			var txtInvTitle = UIManager.Instance.CreateStaticText("txtInvTitle", "Inventory");
+			txtInvTitle.MetricMode = GuiMetricsMode.GMM_RELATIVE;
+			backpackInventoryPanel = UIManager.Instance.CreateScrollablePanel("backpackInventoryPanel", 1, 1, 0, 0, 20, 3);
+			backpackPanel.AddWidget(1, 1, txtInvTitle, AlignMode.Center, DockMode.Fill);
+			backpackPanel.AddWidget(2, 1, backpackInventoryPanel, AlignMode.Center, DockMode.Fill);
+				
+			int curRow = 1;
+			int curCol = 1;
+			for (int i = 0; i < 60; i++)
+			{
+				var invSlot = new PanelTemplateWidget("InvSlot_" + (i + 1).ToString(), "InventorySlot");
+				invSlot.Height = 0.1f;
+				backpackInventoryPanel.ChangeRow(Widgets.ValueType.Abosulte, invSlot.Height, curRow);
+				backpackInventoryPanel.AddWidget(curRow, curCol, invSlot, AlignMode.Center, DockMode.Fill);
+				if ((i + 1) % 3 == 0)
+				{
+					curRow++;
+					curCol = 1;
+				}
+				else
+				{
+					curCol++;
+				}
+			}
+		}
 
         public override void Update(float timeSinceLastFrame)
         {
-            baseAnim.AddTime(timeSinceLastFrame);
-            topAnim.AddTime(timeSinceLastFrame);
         }
 
         public override void InjectKeyPressed(KeyEvent arg)
@@ -161,23 +266,10 @@ namespace OpenMB.Screen
         }
 
         public override void Exit()
-        {
-            OverlayManager.Singleton.Destroy(meshLayer);
-
-            SceneManager scm = ScreenManager.Instance.Camera.SceneManager;
-            scm.DestroySceneNode(sceneNode);
-            scm.DestroyEntity(ent);
-
-            baseAnim.Dispose();
-            topAnim.Dispose();
-
-            Control.nukeOverlayElement(equipmentPanel);
-            Control.nukeOverlayElement(previewPanel);
-            Control.nukeOverlayElement(backpackPanel);
-            if (OnScreenExit != null)
-            {
-                OnScreenExit();
-            }
+		{
+			gameObject.Destroy();
+			OverlayManager.Singleton.Destroy(meshLayer);
+			UIManager.Instance.DestroyAllWidgets();
         }
     }
 }

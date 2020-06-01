@@ -35,7 +35,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>pdbonly</DebugType>
     <Optimize>false</Optimize>
-    <OutputPath>..\</OutputPath>
+    <OutputPath>..\Bin\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
@@ -46,9 +46,9 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
     <PlatformTarget>x86</PlatformTarget>
-    <DebugType>none</DebugType>
+    <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
-    <OutputPath>..\</OutputPath>
+    <OutputPath>..\Bin\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>2</WarningLevel>
@@ -57,52 +57,16 @@
     <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
     <UseVSHostingProcess>false</UseVSHostingProcess>
     <Prefer32Bit>false</Prefer32Bit>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>openmb.ico</ApplicationIcon>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>OpenMB.Program</StartupObject>
   </PropertyGroup>
   <PropertyGroup>
     <SignAssembly>false</SignAssembly>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Optimize>true</Optimize>
-    <DebugType>full</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <CodeAnalysisLogFile>..\AMOFGameEngine.exe.CodeAnalysisLog.xml</CodeAnalysisLogFile>
-    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
-    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
-    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
-    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
-    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
-    <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
-    <CodeAnalysisFailOnMissingRules>false</CodeAnalysisFailOnMissingRules>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Optimize>true</Optimize>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <CodeAnalysisLogFile>..\AMOFGameEngine.exe.CodeAnalysisLog.xml</CodeAnalysisLogFile>
-    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
-    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
-    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRuleSetDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
-    <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup />
   <PropertyGroup />
@@ -157,6 +121,12 @@
     <Reference Include="NVorbis">
       <HintPath>..\Dependencies\NVorbis.dll</HintPath>
     </Reference>
+    <Reference Include="SharpGL, Version=2.4.1.2, Culture=neutral, PublicKeyToken=27fc851303210b27, processorArchitecture=MSIL">
+      <HintPath>..\packages\SharpGL.2.4.1.2\lib\net40-client\SharpGL.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpGL.SceneGraph, Version=2.4.1.2, Culture=neutral, PublicKeyToken=27fc851303210b27, processorArchitecture=MSIL">
+      <HintPath>..\packages\SharpGL.SceneGraph.2.4.1.2\lib\net40\SharpGL.SceneGraph.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -175,8 +145,22 @@
     <Compile Include="Connector\MBOgreManifest.cs" />
     <Compile Include="Connector\MBOgreUtil.cs" />
     <Compile Include="Core\GameConfigXml.cs" />
+    <Compile Include="Core\GameCursor.cs" />
+    <Compile Include="Core\GameRegisterManager.cs" />
+    <Compile Include="Core\GameSlotManager.cs" />
+    <Compile Include="Core\GameString.cs" />
     <Compile Include="Core\InputKeyMouseManager.cs" />
     <Compile Include="Core\KeyMapperManager.cs" />
+    <Compile Include="FileFormats\DotWorldMapLoader.cs" />
+    <Compile Include="Game\GameLocation.cs" />
+    <Compile Include="Game\GameMesh.cs" />
+    <Compile Include="Game\GameTeam.cs" />
+    <Compile Include="Game\ItemTypes\ItemType.cs" />
+    <Compile Include="Game\Vehicle.cs" />
+    <Compile Include="Game\VehicleController.cs" />
+    <Compile Include="Localization\LocateLanguage.cs" />
+    <Compile Include="Map\GameMapEntryPoint.cs" />
+    <Compile Include="Map\GameWorldMap.cs" />
     <Compile Include="Game\DescriptionAttribute.cs" />
     <Compile Include="Game\TimerManager.cs" />
     <Compile Include="FileFormats\Box3F.cs" />
@@ -224,32 +208,17 @@
     <Compile Include="Game\EquipmentSystem.cs" />
     <Compile Include="Game\HealthInfo.cs" />
     <Compile Include="Game\ControlObjType\IControlObjectType.cs" />
-    <Compile Include="Game\ItemAmmoFactory.cs" />
-    <Compile Include="Game\ItemArmourFactory.cs" />
     <Compile Include="Game\ItemFactory.cs" />
-    <Compile Include="Game\Items\Armour.cs" />
-    <Compile Include="Game\Items\Arrow.cs" />
-    <Compile Include="Game\Items\Bolt.cs" />
-    <Compile Include="Game\Items\Bow.cs" />
     <Compile Include="Game\Character.cs" />
     <Compile Include="Game\CharacterController.cs" />
-    <Compile Include="Game\Items\Bullet.cs" />
-    <Compile Include="Game\Items\Cartridge.cs" />
-    <Compile Include="Game\Items\Crossbow.cs" />
-    <Compile Include="Game\Items\Fist.cs" />
     <Compile Include="Game\GameObject.cs" />
     <Compile Include="Game\GameWorld.cs" />
     <Compile Include="Game\Inventory.cs" />
     <Compile Include="Game\Item.cs" />
-    <Compile Include="Game\Items\Pistol.cs" />
-    <Compile Include="Game\Items\Rifle.cs" />
     <Compile Include="Game\ItemTypes\IItemType.cs" />
-    <Compile Include="Game\ItemTypes\ItemTypeArmour.cs" />
-    <Compile Include="Game\ItemWeaponFactory.cs" />
     <Compile Include="Core\OutputManager.cs" />
     <Compile Include="Game\IUpdate.cs" />
     <Compile Include="Game\AIAction\Move.cs" />
-    <Compile Include="Game\Items\OneHandWeapon.cs" />
     <Compile Include="Game\Player.cs" />
     <Compile Include="Game\ScenePlane.cs" />
     <Compile Include="Game\SceneProp.cs" />
@@ -260,26 +229,43 @@
     <Compile Include="Map\GameMapEditor.cs" />
     <Compile Include="Game\MoveInfo.cs" />
     <Compile Include="Map\IGameMapLoader.cs" />
-    <Compile Include="Mods\IModModelType.cs" />
-    <Compile Include="Mods\IModSetting.cs" />
-    <Compile Include="Mods\IModTriggerCondition.cs" />
+    <Compile Include="Mods\Interfaces\IModFlag.cs" />
+    <Compile Include="Mods\Interfaces\IModModelType.cs" />
+    <Compile Include="Mods\Interfaces\IModSetting.cs" />
+    <Compile Include="Mods\Interfaces\IModStartupBackgroundType.cs" />
+    <Compile Include="Mods\Interfaces\IModTriggerCondition.cs" />
     <Compile Include="Mods\ModTriggerConditionOnScenePropHit.cs" />
     <Compile Include="Mods\ModXmlDefineModelType.cs" />
+    <Compile Include="Mods\XML\ModAnimationDfnXml.cs" />
     <Compile Include="Mods\XML\ModCharacterSkinSlot.cs" />
+    <Compile Include="Mods\XML\ModCursorDfnXml.cs" />
+    <Compile Include="Mods\XML\ModFlagsDfnxml.cs" />
     <Compile Include="Mods\XML\ModItemTypeDfnXml.cs" />
     <Compile Include="Mods\XML\ModLocationsDfnXml.cs" />
     <Compile Include="Mods\XML\ModMapsDfnXml.cs" />
+    <Compile Include="Mods\XML\ModMapTemplateDfnXml.cs" />
     <Compile Include="Mods\XML\ModMediaXml.cs" />
     <Compile Include="Mods\XML\ModMenusDfnXml.cs" />
     <Compile Include="Mods\XML\ModModelDfnXml.cs" />
     <Compile Include="Mods\XML\ModScenePropDfnXml.cs" />
     <Compile Include="Mods\XML\ModSettingDfnXml.cs" />
-    <Compile Include="Mods\XML\ModSkeletonsDfnXML.cs" />
+    <Compile Include="Mods\XML\ModSkeletonsDfnXml.cs" />
     <Compile Include="Mods\XML\ModSkinDfnXml.cs" />
+    <Compile Include="Mods\XML\ModStringDfnXml.cs" />
+    <Compile Include="Mods\XML\ModUILayoutDfnXml.cs" />
+    <Compile Include="Mods\XML\ModVehicleDfnXml.cs" />
     <Compile Include="Mods\XML\ModWorldMapsDfnXml.cs" />
+    <Compile Include="Render\IOpenGLRenderable.cs" />
+    <Compile Include="Render\MBBrfMeshRenderable.cs" />
+    <Compile Include="Render\OpenGLRenderManager.cs" />
+    <Compile Include="Screen\CharacterScreen.cs" />
     <Compile Include="Screen\GameEditorScreen.cs" />
+    <Compile Include="Screen\GameMainMenuScreen.cs" />
     <Compile Include="Screen\GameMainScreen.cs" />
     <Compile Include="Screen\GameMenuScreen.cs" />
+    <Compile Include="Screen\GameNotesScreen.cs" />
+    <Compile Include="Screen\GamePartyScreen.cs" />
+    <Compile Include="Screen\GameTerrainEditorScreen.cs" />
     <Compile Include="Screen\Screen.cs" />
     <Compile Include="Map\AIMesh.cs" />
     <Compile Include="Map\GameMap.cs" />
@@ -314,15 +300,20 @@
     <Compile Include="Script\Command\AssignScriptCommand.cs" />
     <Compile Include="Script\Command\CaseScriptCommand.cs" />
     <Compile Include="Script\Command\ChangeHitpointScriptCommand.cs" />
+    <Compile Include="Script\Command\ChangeReturnMainMenu.cs" />
     <Compile Include="Script\Command\ChangeScreenReturnScriptCommand.cs" />
     <Compile Include="Script\Command\ChangeSystemVariableValue.cs" />
+    <Compile Include="Script\Command\ChangeUIScriptCommand.cs" />
+    <Compile Include="Script\Command\DataStoreIdByIndexScriptCommand.cs" />
     <Compile Include="Script\Command\EndScriptCommand.cs" />
     <Compile Include="Script\Command\FunctionScriptCommand.cs" />
     <Compile Include="Script\Command\GetScenePropNumScriptCommand.cs" />
     <Compile Include="Script\Command\GetScenePropScriptCommand.cs" />
+    <Compile Include="Script\Command\HookTriggerEventScriptCommand.cs" />
     <Compile Include="Script\Command\InitVectorScriptCommand.cs" />
     <Compile Include="Script\Command\IScriptCommand.cs" />
     <Compile Include="Script\Command\ChangeWorldMapScriptCommand.cs" />
+    <Compile Include="Script\Command\ListAddScriptCommand.cs" />
     <Compile Include="Script\Command\ListGetValueScriptCommand.cs" />
     <Compile Include="Script\Command\ListGetValueNumScriptCommand.cs" />
     <Compile Include="Script\Command\ListRemoveValueScriptCommand.cs" />
@@ -335,6 +326,8 @@
     <Compile Include="Script\Command\RootScriptCommand.cs" />
     <Compile Include="Script\Command\ScriptCommand.cs" />
     <Compile Include="Script\Command\SetCameraModeScriptCommand.cs" />
+    <Compile Include="Script\Command\SlotGetScriptCommand.cs" />
+    <Compile Include="Script\Command\SlotSetScriptCommand.cs" />
     <Compile Include="Script\Command\SpawnPlaneScriptCommand.cs" />
     <Compile Include="Script\Command\SpawnPlayerCharacterScriptCommand.cs" />
     <Compile Include="Script\Command\SpawnScenePropScriptCommand.cs" />
@@ -344,17 +337,25 @@
     <Compile Include="Script\Command\StoreFunctionInputParameterScriptCommand.cs" />
     <Compile Include="Script\Command\StoreScriptCommand.cs" />
     <Compile Include="Script\Command\StoreStringScriptCommand.cs" />
+    <Compile Include="Script\Command\DataStoreIndexScriptCommand.cs" />
+    <Compile Include="Script\Command\DataStoreValueByIndexScriptCommand.cs" />
+    <Compile Include="Script\Command\SwitchMenuScriptCommand.cs" />
     <Compile Include="Script\Command\SwitchScriptCommand.cs" />
+    <Compile Include="Terrain\TerrainData.cs" />
+    <Compile Include="Terrain\TerrainGenerator.cs" />
+    <Compile Include="Widgets\Controls\TextWidget.cs" />
     <Compile Include="Script\Command\TriggerConditionScriptCommand.cs" />
     <Compile Include="Script\Command\TriggerExecuteSrciptCommand.cs" />
     <Compile Include="Script\Command\TriggerScriptCommand.cs" />
-    <Compile Include="Script\Command\UIScriptCommand.cs" />
+    <Compile Include="Script\Command\ValueAddScriptCommand.cs" />
     <Compile Include="Script\Command\VectorGetXScriptCommand.cs" />
     <Compile Include="Script\Command\VectorGetYScriptCommand.cs" />
     <Compile Include="Script\Command\VectorGetZScriptCommand.cs" />
     <Compile Include="Script\Command\VectorSetXScriptCommand.cs" />
     <Compile Include="Script\Command\VectorSetYScriptCommand.cs" />
     <Compile Include="Script\Command\VectorSetZScriptCommand.cs" />
+    <Compile Include="Script\Command\WidgetAddItemScriptCommand.cs" />
+    <Compile Include="Script\Command\WidgetGetTextScriptCommand.cs" />
     <Compile Include="Script\ScriptCommandRegister.cs" />
     <Compile Include="Script\ScriptContext.cs" />
     <Compile Include="Script\ScriptFile.cs" />
@@ -367,9 +368,6 @@
     <Compile Include="Script\ScriptPreprocessor.cs" />
     <Compile Include="Script\ScriptTrigger.cs" />
     <Compile Include="Script\ScriptValueRegister.cs" />
-    <Compile Include="Script\UIScriptFile.cs" />
-    <Compile Include="Script\Command\UIUpdateScriptCommand.cs" />
-    <Compile Include="Script\Command\UISetupScriptCommand.cs" />
     <Compile Include="Sound\GameSound.cs" />
     <Compile Include="Sound\SoundManager.cs" />
     <Compile Include="Forms\frmConfigure.cs">
@@ -412,13 +410,32 @@
     <Compile Include="Utilities\StaticMesh.cs" />
     <Compile Include="Video\VideoTexture.cs" />
     <Compile Include="Video\VideoTextureManager.cs" />
-    <Compile Include="Widgets\Control.cs" />
-    <Compile Include="Widgets\InputBox.cs" />
-    <Compile Include="Widgets\GameTrayManager.cs" />
-    <Compile Include="Widgets\ListView.cs" />
-    <Compile Include="Widgets\Panel.cs" />
-    <Compile Include="Widgets\SdkTrayGUI.cs" />
-    <Compile Include="Widgets\StaticText.cs" />
+    <Compile Include="Widgets\Controls\ButtonWidget.cs" />
+    <Compile Include="Widgets\Controls\CheckBoxWidget.cs" />
+    <Compile Include="Widgets\Controls\Control.cs" />
+    <Compile Include="Widgets\Controls\InputBoxWidget.cs" />
+    <Compile Include="Widgets\Controls\GameTrayManager.cs" />
+    <Compile Include="Widgets\IHasSubItems.cs" />
+    <Compile Include="Widgets\IHasSubWidgets.cs" />
+    <Compile Include="Mods\Interfaces\IInitializeMod.cs" />
+    <Compile Include="Widgets\IScrollable.cs" />
+    <Compile Include="Widgets\Controls\LabelWidget.cs" />
+    <Compile Include="Widgets\Controls\ListViewWidget.cs" />
+    <Compile Include="Widgets\Controls\PanelMaterialWidget.cs" />
+    <Compile Include="Widgets\Controls\PanelScrollableWidget.cs" />
+    <Compile Include="Widgets\Controls\PanelTemplateWidget.cs" />
+    <Compile Include="Widgets\Controls\PanelWidget.cs" />
+    <Compile Include="Widgets\Controls\ParamsPanelWidget.cs" />
+    <Compile Include="Widgets\Controls\ProgressBarWidget.cs" />
+    <Compile Include="Widgets\UIManager.cs" />
+    <Compile Include="Widgets\Controls\SelectMenuWidget.cs" />
+    <Compile Include="Widgets\Controls\SeparatorWidget.cs" />
+    <Compile Include="Widgets\Controls\SliderWidget.cs" />
+    <Compile Include="Widgets\Controls\StaticTextWidget.cs" />
+    <Compile Include="Widgets\Controls\StaticTextButtonWidget.cs" />
+    <Compile Include="Widgets\Controls\StaticTextRelativeWidget.cs" />
+    <Compile Include="Widgets\Controls\StaticMultiLineTextBoxWidget.cs" />
+    <Compile Include="Widgets\Widget.cs" />
     <EmbeddedResource Include="Forms\frmConfigure.resx">
       <DependentUpon>frmConfigure.cs</DependentUpon>
       <SubType>Designer</SubType>
@@ -450,7 +467,10 @@
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <Content Include="openmb.ico" />
+    <Content Include="app.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <None Include="Resources\logo.png" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0">
